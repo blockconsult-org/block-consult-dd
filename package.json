@@ -28,7 +28,8 @@
     "desktop:icon": "node scripts/generate-icon.mjs",
     "db:check-migrations": "tsx scripts/check-migrations.ts",
     "test:browser": "node scripts/verify-browser.mjs",
-    "test:select": "node scripts/verify-select.mjs"
+    "test:select": "node scripts/verify-select.mjs",
+    "test:hydration": "node scripts/verify-hydration.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

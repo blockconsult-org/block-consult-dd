@@ -59,9 +59,12 @@ npm run test:browser
 # Optional: regenerate the interface screenshots from the fictional case
 npm run test:browser -- --screenshots
 npm run test:select
+npm run test:hydration
 ```
 
 The production browser check covers themes, accessibility, responsive layouts, saving case data, settings persistence, retained drafts, rule-based research and report exports. Provider model lists and connection tests use fixtures; no paid provider calls run. The select check bundles the shared control into a disposable browser fixture and exercises keyboard use, empty values, FormData, required validation, reset behavior and menus inside dialogs.
+
+The hydration check uses Next's bundled React to reproduce a pending route child replay and verify that `RouteContent` preserves the server-rendered page. Its negative control detects the installed renderer's host-child bug; revisit that control when upgrading Next if the upstream bug is fixed.
 
 See [the interface guide](interface.md) for shared components and the save behavior they support. Keep the single named form bridge when changing selects; a second successful control with the same name can silently submit the wrong value.
 

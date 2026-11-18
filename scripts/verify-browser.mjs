@@ -51,7 +51,6 @@ let log = "";
 for (const stream of [server.stdout, server.stderr]) stream.on("data", (chunk) => { log = (log + chunk).slice(-18000); });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let browser;
-let hydrationTrace;
 
 async function api(route, method = "GET", body) {
   const response = await fetch(url + route, {
@@ -92,14 +91,9 @@ try {
   let action = "Initializing browser";
   let actionStartedAt = Date.now();
   const doing = (description) => { action = description; actionStartedAt = Date.now(); };
-  if (process.env.BC_TRACE_HYDRATION === "1" || process.argv.includes("--trace-hydration")) {
-    const { installHydrationTrace } = await import("./hydration-trace.mjs");
-    hydrationTrace = await installHydrationTrace({ page, artifactDirectory: path.join(root, "test-results", "hydration-trace"), currentContext: () => ({ stage, action, actionStartedAt }) });
-  }
   page.on("pageerror", (error) => {
     const detail = { stage, action, actionStartedAt, errorAt: Date.now(), url: page.url(), message: error.message, stack: error.stack };
     errors.push(detail);
-    hydrationTrace?.recordRuntime(detail);
     console.error("Browser runtime error", JSON.stringify(detail));
   });
   stage = "initial hydration";
@@ -189,7 +183,6 @@ try {
   const pdf = await fetch(`${url}/api/cases/${id}/report/pdf`);
   assert.equal(pdf.status, 200);
   assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-");
-  await hydrationTrace?.flush();
   assert.deepEqual(errors, [], "Browser runtime errors");
   console.log(`PASS: SSR hydration, ${screens.length * 2} screen/theme accessibility checks, ${screens.length * 8} responsive checks, short windows and zoom, case/settings workflows, draft/save/reload, offline research, report and PDF exports.`);
   if (capture) console.log("Captured eight fictional-case screenshots in docs/screenshots/.");
@@ -197,7 +190,6 @@ try {
   console.error(log);
   throw error;
 } finally {
-  await hydrationTrace?.flush();
   await browser?.close();
   server.kill();
   await Promise.race([new Promise((resolve) => server.once("exit", resolve)), delay(5000)]);
