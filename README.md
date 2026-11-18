@@ -26,15 +26,17 @@ The case dashboard brings status, red flags and the latest review activity into 
 - Review category scores and blockers. Each score shows whether it came from an analyst, rules or AI; blockers can only lower the recommendation.
 - Generate a saved report snapshot, export HTML, Markdown and an evidence manifest, or preview and export a PDF from the current case.
 
-The interface uses Block Consult's light and dark palettes, with a system theme option, keyboard navigation and layouts for narrow windows.
+The interface uses Block Consult's light and dark palettes, with a system theme option, keyboard navigation and layouts for narrow windows. Custom selects support arrow keys, typeahead and form validation. Case tabs and Settings sections retain unsaved drafts while you switch between them.
 
 ## Get started
 
 1. Open Block Consult DD and choose **Load example case** to explore the fictional Meridian RWA Token case, or create a new case.
-2. Review the intake and add the sources you have. Missing evidence remains visible as missing.
+2. Review or edit the intake and add the sources you have. Missing evidence remains visible as missing.
 3. Run the rule-based checks from the case overview. To use AI, choose and configure a provider in Settings first.
 4. Review the findings and scorecard, including every active blocker.
 5. Open the Report tab to generate a saved report or export the current case.
+
+Settings separates the active AI provider from the connection you are configuring. Appearance, provider connections, research defaults and usage have their own sections. See [working in the desktop app](docs/interface.md) for saving, draft protection and keyboard controls.
 
 ## Screenshots
 
@@ -43,6 +45,8 @@ Screenshots use the fictional Meridian RWA Token case. The overview keeps intake
 ![The Meridian example case in dark mode, with its intake summary and workflow controls](docs/screenshots/case-overview-dark.png)
 
 ![The light-mode scorecard, showing category scores, provenance and recommendation blockers](docs/screenshots/scorecard-light.png)
+
+![Settings in light mode, showing the active provider and the connection being configured](docs/screenshots/settings-light.png)
 
 ## Download and install
 
@@ -56,7 +60,7 @@ The [latest release](https://github.com/blockconsult-org/block-consult-dd/releas
 
 Choose the filename ending shown above. Apple silicon and Intel Macs have separate builds because the database engine is native to each processor. ZIP archives and Linux AppImage/DEB packages are also available on the release page.
 
-Release notes state the signing and notarization status of each download. The macOS apps in v0.2.0 are Developer ID signed but not notarized, and the Windows installer is unsigned. Operating-system security controls may block installation; follow your organization's installation policy. Check `SHA256SUMS.txt` against the downloaded file using `shasum -a 256` (macOS) or `Get-FileHash -Algorithm SHA256` (PowerShell).
+Release notes state the signing and notarization status of each download. Operating-system security controls may block installation; follow your organization's installation policy. Check `SHA256SUMS.txt` against the downloaded file using `shasum -a 256` (macOS) or `Get-FileHash -Algorithm SHA256` (PowerShell).
 
 ## Your data
 
@@ -70,7 +74,7 @@ Use **Help → Open data folder** in the desktop app. Default locations are:
 | Windows | `%APPDATA%\Block Consult DD` |
 | Linux | `~/.config/Block Consult DD` |
 
-The folder holds the SQLite database, generated reports, fetched source text and application logs. Quit the app before copying the folder for a backup. The app also backs up the database before applying a schema upgrade. Encrypted API keys may require re-entry on another computer. Version 0.2.0 keeps the existing app identity and data location.
+The folder holds the SQLite database, generated reports, fetched source text and application logs. Quit the app before copying the folder for a backup. The app also backs up the database before applying a schema upgrade. Encrypted API keys may require re-entry on another computer. Version 0.3.0 keeps the existing app identity and data location.
 
 ## Optional AI
 

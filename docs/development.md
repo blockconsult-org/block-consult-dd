@@ -56,11 +56,14 @@ After building, run the production browser check against a disposable database:
 ```bash
 npx playwright install chromium
 npm run test:browser
-# Optional: regenerate the four README screenshots from the fictional case
+# Optional: regenerate the interface screenshots from the fictional case
 npm run test:browser -- --screenshots
+npm run test:select
 ```
 
-This checks both themes, accessibility, narrow layouts, scorecard draft persistence, rule-based research and PDF export. It does not call an AI provider.
+The production browser check covers themes, accessibility, responsive layouts, saving case data, settings persistence, retained drafts, rule-based research and report exports. Provider model lists and connection tests use fixtures; no paid provider calls run. The select check bundles the shared control into a disposable browser fixture and exercises keyboard use, empty values, FormData, required validation, reset behavior and menus inside dialogs.
+
+See [the interface guide](interface.md) for shared components and the save behavior they support. Keep the single named form bridge when changing selects; a second successful control with the same name can silently submit the wrong value.
 
 For database work, create an additive migration, regenerate the Prisma client and verify existing data survives:
 

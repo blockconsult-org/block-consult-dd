@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- Replace visible native dropdowns with keyboard-accessible custom selects, including theme selection. Keep validation, default and empty values, resets and form submission intact.
+- Separate Settings into provider connections, Appearance, Research and Usage. Retain drafts, show saved and failed states, and distinguish the active provider from the connection being configured.
+- Edit existing intake and structured records while preserving nested data. Add guards against losing unsaved work when navigating or closing the app.
+- Bring research actions forward, keep scorecard saving within reach, and make evidence and findings easier to review. Display saved finding impact and mitigation.
+- Confirm replacement of the latest report snapshot. Keep current-case exports separate from that snapshot.
+- Add regression checks for control behavior, settings persistence and complete case workflows, plus updated fictional-case screenshots.
+
+The app identity, data folders, credential storage, scoring rules and report contracts remain unchanged. Existing AI narrative freshness rules do not independently detect intake or record edits; review and regenerate narrative after those changes.
+
 ## 0.2.0
 
 ### Interface
