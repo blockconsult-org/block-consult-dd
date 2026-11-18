@@ -186,7 +186,7 @@ function RunSummary({ run, stale }: { run: ResearchRunView; stale: boolean }) {
   const mixedModels = new Set(calls.map((call) => call.model)).size > 1;
 
   return (
-    <div className="space-y-3 border-t border-line pt-4">
+    <div className="space-y-3 border-t border-line pt-4" role="status">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted">Last run</span>
         <RunStatusBadge status={run.status} />
@@ -257,14 +257,15 @@ export function ResearchPanel({ caseId, ai, active, runs }: { caseId: string; ai
   async function cancel() {
     starting.setError(null);
     setStoppingRunId(research.active?.runId ?? null);
-    await cancelling.run(() => apiPost(`/api/cases/${caseId}/research/cancel`, {}));
+    const ok = await cancelling.run(() => apiPost(`/api/cases/${caseId}/research/cancel`, {}));
+    if (!ok) setStoppingRunId(null);
   }
 
   return (
     <Card>
       <CardHeader
-        title="Research"
-        subtitle="A run updates the findings, red flags and scores that research produced. Your own entries, and scores you set, stay as they are."
+        title="Research & checks"
+        subtitle="Review the sources and intake first. A run replaces earlier generated findings and scores while keeping your analyst entries."
       />
       <CardBody className="space-y-4">
         <fieldset disabled={running || starting.busy}>

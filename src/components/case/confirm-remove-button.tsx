@@ -34,7 +34,7 @@ export function ConfirmRemoveButton({ label, description, disabled, onRemove }: 
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
         <Dialog.Content onOpenAutoFocus={(event) => { event.preventDefault(); cancel.current?.focus(); }}
           onEscapeKeyDown={(event) => { if (removing) event.preventDefault(); }} onPointerDownOutside={(event) => { if (removing) event.preventDefault(); }}
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-surface p-6 shadow-xl">
+          className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-line bg-surface p-6 shadow-xl">
           <AlertTriangle className="mb-4 h-6 w-6 text-danger" aria-hidden="true" />
           <Dialog.Title className="break-words text-lg font-semibold text-fg">Remove {label}?</Dialog.Title>
           <Dialog.Description className="mt-2 text-sm leading-relaxed text-muted">{description}</Dialog.Description>

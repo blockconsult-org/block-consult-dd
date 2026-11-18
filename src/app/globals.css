@@ -55,7 +55,7 @@
     @apply bg-bg font-sans text-sm text-fg antialiased;
     text-rendering: optimizeLegibility;
   }
-  h1, h2, h3, h4 { text-wrap: balance; }
+  h1, h2, h3, h4 { text-wrap: balance; overflow-wrap: anywhere; }
   p { text-wrap: pretty; }
   ::selection { @apply bg-accent text-accent-fg; }
   :focus-visible {
@@ -92,6 +92,13 @@
   .section-description { @apply mt-2 max-w-2xl text-sm leading-6 text-muted; }
   .empty-state { @apply flex flex-col items-center rounded-card border border-dashed border-line-strong bg-elevated/30 px-6 py-12 text-center; }
   .table-scroll { @apply min-w-0 overflow-x-auto overscroll-x-contain; }
+}
+
+/* Sticky page actions should not consume a short desktop window. */
+@media (max-height: 600px) {
+  :root { --app-header-height: 0rem; }
+  html { scroll-padding-top: 1.5rem; }
+  body > header { position: relative; }
 }
 
 @layer utilities {

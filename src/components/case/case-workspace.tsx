@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, ClipboardList, FileCheck2, Files, LayoutDashboard, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardList, FileCheck2, Files, LayoutDashboard, Search, SlidersHorizontal } from "lucide-react";
 import { RECOMMENDATION_LABELS, REPORT_TYPE_LABELS, type Recommendation, type ReportType } from "@/domain/enums";
+import { Button } from "@/components/ui/button";
 import { Badge, RecommendationBadge } from "@/components/ui/badge";
 import { cn, titleCase } from "@/lib/utils";
 import type { CaseData } from "./types";
@@ -56,6 +57,8 @@ export function CaseWorkspace({ data }: { data: CaseData }) {
     const url = new URL(window.location.href);
     if (url.searchParams.get("tab") !== next) {
       url.searchParams.set("tab", next);
+      // Next.js copies its router state and synchronizes the canonical URL.
+      // Passing its internal __NA flag here would bypass that synchronization.
       window.history.pushState(null, "", url);
     }
   }
@@ -74,6 +77,13 @@ export function CaseWorkspace({ data }: { data: CaseData }) {
     buttons.current[next]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
+  const nextStep: { tab: TabKey; label: string; detail: string } = data.sources.length === 0
+    ? { tab: "evidence", label: "Add evidence", detail: "Start with an official source or the offer material." }
+    : data.findings.length === 0
+      ? { tab: "overview", label: "Run checks", detail: "Use the sources and records to identify gaps and red flags." }
+      : data.scorecard === null
+        ? { tab: "scorecard", label: "Assess the scorecard", detail: "Score the evidence and review each blocker." }
+        : { tab: "report", label: "Prepare the report", detail: "Check the narrative and report readiness." };
   const panels = {
     overview: <OverviewTab data={data} />,
     evidence: <EvidenceTab data={data} />,
@@ -106,7 +116,7 @@ export function CaseWorkspace({ data }: { data: CaseData }) {
         </div>
       </header>
 
-      <div className="space-y-3">
+      <div className="case-section-nav sticky top-[var(--app-header-height)] z-20 space-y-2 bg-bg py-2">
         <div role="tablist" aria-label="Case sections" aria-orientation="horizontal" className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1.5">
           {TABS.map((item, index) => (
             <button key={item.key} ref={(node) => { buttons.current[item.key] = node; }} type="button" role="tab"
@@ -118,6 +128,18 @@ export function CaseWorkspace({ data }: { data: CaseData }) {
         </div>
         <p className="text-sm text-muted">{TABS.find((item) => item.key === tab)?.description}</p>
       </div>
+
+      {tab === "overview" && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
+        <p className="text-sm text-muted"><span className="mr-2 font-medium text-fg">Next step</span>{nextStep.detail}</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => {
+          selectTab(nextStep.tab);
+          if (nextStep.tab === "overview") requestAnimationFrame(() => {
+            const research = document.getElementById("case-research");
+            research?.focus({ preventScroll: true });
+            research?.scrollIntoView({ block: "start" });
+          });
+        }}>{nextStep.label}<ArrowRight aria-hidden className="h-3.5 w-3.5" /></Button>
+      </div>}
 
       {TABS.map((item) => (
         <section key={`${data.id}-${item.key}`} role="tabpanel" id={`case-${data.id}-panel-${item.key}`} aria-labelledby={`case-${data.id}-tab-${item.key}`}

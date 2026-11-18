@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, FileCheck2, FolderOpen, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { CASE_STATUS, REPORT_TYPE_LABELS, RECOMMENDATION_LABELS, type Recommendation, type ReportType } from "@/domain/enums";
@@ -27,6 +27,7 @@ interface CaseSummary {
 
 const STATUS_LABELS: Record<string, string> = { draft: "Draft", qa: "In review", final: "Final", archived: "Archived" };
 type SortOrder = "recent" | "oldest" | "name" | "score";
+const FILTER_STORAGE_KEY = "bc-dd-case-filters";
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", {
@@ -45,6 +46,23 @@ export function CaseDashboard({ cases, aiConfigured }: { cases: CaseSummary[]; a
   const [status, setStatus] = useState("all");
   const [flagged, setFlagged] = useState(false);
   const [sort, setSort] = useState<SortOrder>("recent");
+  const [filtersReady, setFiltersReady] = useState(false);
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(sessionStorage.getItem(FILTER_STORAGE_KEY) ?? "null");
+      if (saved && typeof saved === "object") {
+        if ("query" in saved && typeof saved.query === "string") setQuery(saved.query);
+        if ("status" in saved && typeof saved.status === "string" && ["all", ...CASE_STATUS].includes(saved.status)) setStatus(saved.status);
+        if ("flagged" in saved && typeof saved.flagged === "boolean") setFlagged(saved.flagged);
+        if ("sort" in saved && (saved.sort === "recent" || saved.sort === "oldest" || saved.sort === "name" || saved.sort === "score")) setSort(saved.sort);
+      }
+    } catch { /* Search remains usable when browser storage is unavailable. */ }
+    setFiltersReady(true);
+  }, []);
+  useEffect(() => {
+    if (!filtersReady) return;
+    try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ query, status, flagged, sort })); } catch { /* Session-only convenience. */ }
+  }, [filtersReady, query, status, flagged, sort]);
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
     return cases.filter((item) => {
@@ -66,24 +84,24 @@ export function CaseDashboard({ cases, aiConfigured }: { cases: CaseSummary[]; a
     { label: "Saved reports", value: cases.reduce((total, item) => total + item.reports, 0), detail: "Latest snapshots per case" },
   ];
 
-  return <div className="space-y-8">
+  return <div className="space-y-6">
     <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl"><span className="eyebrow">Research workspace</span>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">Due diligence<span className="text-accent">.</span></h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted">Review an opportunity, trace its claims to evidence, and prepare a report for a decision.</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">Your cases<span className="text-accent">.</span></h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">Review evidence, assess risk and prepare your next decision.</p>
       </div>
       <Button asChild className="self-start sm:shrink-0"><Link href="/cases/new"><Plus className="h-4 w-4" aria-hidden="true" /> New case</Link></Button>
     </header>
 
-    <section aria-label="Workspace totals" className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line lg:grid-cols-4">
-      {metrics.map((metric) => <div key={metric.label} className="min-w-0 bg-surface px-4 py-5 sm:px-6">
+    <section aria-label="Workspace totals" className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-4">
+      {metrics.map((metric) => <div key={metric.label} className="min-w-0 bg-surface px-4 py-4 sm:px-5">
         <p className="text-xs font-medium text-muted">{metric.label}</p><p className="mt-2 font-mono text-3xl font-medium tabular-nums text-fg">{metric.value}</p><p className="mt-2 text-xs leading-relaxed text-faint">{metric.detail}</p>
       </div>)}
     </section>
 
     {!aiConfigured && <aside className="flex flex-col gap-4 border-l-2 border-accent bg-accent/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div><h2 className="text-sm font-semibold text-fg">Start with your evidence. Connect AI when you need it.</h2><p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">Create cases and run rule-based checks now. Add an API key or a signed-in local CLI in settings to use AI research and drafting.</p></div>
-      <Button asChild variant="outline" className="self-start sm:shrink-0"><Link href="/settings">AI settings <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
+      <div><h2 className="text-sm font-semibold text-fg">AI is off. Rule-based checks are ready.</h2><p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">Work with your own evidence, or connect a provider for AI research and drafting.</p></div>
+      <Button asChild variant="outline" className="self-start sm:shrink-0"><Link href="/settings">Configure AI <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
     </aside>}
 
     {cases.length === 0 ? <section className="card px-6 py-12 text-center sm:py-16" aria-labelledby="empty-cases-heading">

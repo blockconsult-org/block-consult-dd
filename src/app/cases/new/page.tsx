@@ -6,9 +6,12 @@ import { ArrowLeft, ChevronDown, Loader2 } from "lucide-react";
 import type { IntakeExtract } from "@/ai/schemas";
 import { IntakeExtractor } from "@/components/intake-extractor";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Select } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { REPORT_TYPE, REPORT_TYPE_LABELS, INTAKE_OFFER_TYPE } from "@/domain/enums";
+import { DraftForm } from "@/components/ui/draft-form";
+import { confirmDiscardChanges } from "@/components/ui/use-unsaved-changes";
+import { IntakeFields } from "@/components/case/intake-fields";
+import { REPORT_TYPE, REPORT_TYPE_LABELS } from "@/domain/enums";
 
 const splitLines = (s: string) => s.split(/\n+/).map((x) => x.trim()).filter(Boolean);
 const splitCommas = (s: string) => s.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
@@ -60,7 +63,7 @@ export default function NewCasePage() {
         const el = form.elements.namedItem(name);
         if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
           if (el.value.trim()) preserved += 1;
-          else { el.value = value; applied += 1; }
+          else { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); applied += 1; }
         }
       }
     }
@@ -140,7 +143,7 @@ export default function NewCasePage() {
           }),
         }).catch(() => null);
         if (!source?.ok) {
-          setError("The case was created, but the offer text could not be saved as a source. Copy it from this form and add it in the case’s Sources tab.");
+          setError("The case was created, but the offer text could not be saved as a source. Copy it from this form and add it in the case’s Evidence tab.");
           setSubmitting(false);
           return;
         }
@@ -153,7 +156,7 @@ export default function NewCasePage() {
   }
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} className="mx-auto max-w-5xl space-y-6" aria-busy={submitting}>
+    <DraftForm saved={createdCaseId !== null} ref={formRef} onSubmit={onSubmit} className="mx-auto max-w-5xl space-y-6" aria-busy={submitting}>
       <div>
         <Link href="/" className="mb-6 inline-flex items-center gap-2 text-xs text-muted hover:text-link"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Case library</Link>
         <p className="eyebrow">Intake</p>
@@ -162,6 +165,7 @@ export default function NewCasePage() {
         <p className="mt-2 text-xs text-faint">Only the project name is required. Claims remain unverified until supported by evidence.</p>
       </div>
 
+      <fieldset disabled={submitting || createdCaseId !== null} className="space-y-4">
       <details className="group rounded-card border border-line bg-surface">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-medium text-fg">
           <span>Have an offer email or term sheet? <span className="font-normal text-muted">Fill empty fields with AI.</span></span>
@@ -182,39 +186,11 @@ export default function NewCasePage() {
               {REPORT_TYPE.map((t) => <option key={t} value={t}>{REPORT_TYPE_LABELS[t]}</option>)}
             </Select>
           </Field>
-          <Field label="Offer type">
-            <Select name="offerType" defaultValue="">
-              <option value="">— unknown —</option>
-              {INTAKE_OFFER_TYPE.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-            </Select>
-          </Field>
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="Asset identity" subtitle="Tickers, links and contract addresses to verify" />
-        <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Ticker(s)" hint="comma-separated"><Input name="tickers" placeholder="MRDN" /></Field>
-          <Field label="Chain(s)" hint="comma-separated"><Input name="chains" placeholder="ethereum, base" /></Field>
-          <Field label="Websites / links" hint="one per line"><Textarea name="links" placeholder={"https://project.xyz\nhttps://docs.project.xyz"} /></Field>
-          <Field label="Contract address(es)" hint="One per line: chain:address, or just an address if the chain is unknown."><Textarea name="contractAddresses" placeholder={"ethereum:0xabc...\nbase:0xdef..."} /></Field>
-          <Field label="Claimed exchange listings" hint="one per line"><Textarea name="claimedExchangeListings" placeholder={"Binance\nKraken"} /></Field>
-          <Field label="Claimed partnerships" hint="one per line"><Textarea name="claimedPartnerships" placeholder={"BlackRock\nFireblocks"} /></Field>
-        </CardBody>
-      </Card>
+      <IntakeFields />
 
-      <Card>
-        <CardHeader title="Offer & counterparty" subtitle="Record the terms as offered and who is making the offer." />
-        <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Offer price"><Input name="offerPrice" placeholder="$0.04 / token" /></Field>
-          <Field label="Investment size"><Input name="investmentAmount" placeholder="$250,000" /></Field>
-          <Field label="Lockup / vesting"><Input name="lockupVesting" placeholder="12m cliff, 24m linear" /></Field>
-          <Field label="Wallet addresses" hint="one per line"><Textarea name="walletAddresses" /></Field>
-          <Field label="Client jurisdiction"><Input name="clientJurisdiction" placeholder="Germany" /></Field>
-          <Field label="Issuer jurisdiction"><Input name="issuerJurisdiction" placeholder="BVI" /></Field>
-          <div className="sm:col-span-2">
-            <Field label="Seller / counterparty details" hint="how the offer arrived, contact channels, claimed authority"><Textarea name="sellerDetails" /></Field>
-          </div>
           {counterparties.length > 0 && (
             <div className="sm:col-span-2">
               <p className="label">Counterparties found in the offer text</p>
@@ -236,16 +212,6 @@ export default function NewCasePage() {
               </ul>
             </div>
           )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Claims & questions to verify" subtitle="Set the questions that the evidence review needs to answer." />
-        <CardBody className="grid grid-cols-1 gap-4">
-          <Field label="Questions / claims to verify" hint="one per line"><Textarea name="questionsToVerify" /></Field>
-          <Field label="Notes"><Textarea name="notes" /></Field>
-        </CardBody>
-      </Card>
 
       {offerText && (
         <label className="flex items-start gap-3 text-sm">
@@ -257,12 +223,15 @@ export default function NewCasePage() {
         </label>
       )}
 
+      </fieldset>
+
+      {createdCaseId && error && offerText && <details className="rounded-card border border-line bg-surface p-4"><summary className="cursor-pointer text-sm font-medium">Offer text to copy</summary><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-muted">{offerText}</pre></details>}
       {error && <div role="alert" className="rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</div>}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
+      <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-line-strong bg-surface p-4 shadow-sm">
         {createdCaseId && !submitting ? <Button asChild><Link href={`/cases/${createdCaseId}`}>Open created case</Link></Button> : <Button type="submit" disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{submitting ? "Creating…" : "Create case"}</Button>}
-        {!createdCaseId && <Button type="button" variant="ghost" disabled={submitting} onClick={() => router.push("/")}>Cancel</Button>}
+        {!createdCaseId && <Button type="button" variant="ghost" disabled={submitting} onClick={() => { if (confirmDiscardChanges()) router.push("/"); }}>Cancel</Button>}
       </div>
-    </form>
+    </DraftForm>
   );
 }

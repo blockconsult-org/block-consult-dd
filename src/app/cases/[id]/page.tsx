@@ -84,6 +84,8 @@ export default async function CaseDetailPage({ params }: Params) {
         claimedPartnerships: parseJson<string[]>(c.intake.claimedPartnerships, []),
         claimedExchangeListings: parseJson<string[]>(c.intake.claimedExchangeListings, []),
         walletAddresses: parseJson<string[]>(c.intake.walletAddresses, []),
+        counterparties: parseJson<unknown[]>(c.intake.counterparties, []),
+        documents: parseJson<unknown[]>(c.intake.documents, []),
         questionsToVerify: parseJson<string[]>(c.intake.questionsToVerify, []),
         offerType: c.intake.offerType,
         offerPrice: c.intake.offerPrice,
@@ -144,7 +146,7 @@ export default async function CaseDetailPage({ params }: Params) {
     markets: c.markets.map((m) => ({ id: m.id, exchange: m.exchange, pair: m.pair, volume24h: m.volume24h })),
     stablecoins: c.stablecoins.map((s) => ({ id: s.id, name: s.name })),
     rwaAssets: c.rwaAssets.map((r) => ({ id: r.id, assetDescription: r.assetDescription })),
-    findings: c.findings.map((f) => ({ id: f.id, category: f.category, title: f.title, severity: f.severity, confidence: f.confidence, analysis: f.analysis, source: f.source })),
+    findings: c.findings.map((f) => ({ id: f.id, category: f.category, title: f.title, severity: f.severity, confidence: f.confidence, analysis: f.analysis, impact: f.impact, mitigation: f.mitigation, source: f.source })),
     redFlags: c.redFlags.map((r) => ({ id: r.id, title: r.title, severity: r.severity, evidence: r.evidence, mitigation: r.mitigation })),
     scorecard: c.scorecard
       ? {

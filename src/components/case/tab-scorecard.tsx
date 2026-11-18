@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea, Label } from "@/components/ui/field";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { RecommendationBadge } from "@/components/ui/badge";
 import { useMutate } from "./use-mutate";
 import { apiPut } from "./api-client";
@@ -52,6 +53,7 @@ export function ScorecardTab({ data }: { data: CaseData }) {
   }, [data.id, incoming]);
   const { scores, gating, confidenceLevel, notes } = form.draft;
   const dirty = scorecardDraftChanged(form.draft, form.baseline);
+  useUnsavedChanges(dirty);
   const researchBlockers = GATING_RULES.filter(({ flag }) => data.researchGating[flag]);
 
   function edit(update: (draft: ScorecardDraft) => ScorecardDraft) {
@@ -181,9 +183,6 @@ export function ScorecardTab({ data }: { data: CaseData }) {
               <Label htmlFor="scorecard-notes">Analyst notes</Label>
               <Textarea id="scorecard-notes" value={notes} onChange={(e) => edit((draft) => ({ ...draft, notes: e.target.value }))} placeholder="Explain the decision and any remaining conditions." />
             </div>
-            <Button type="submit" disabled={busy || (!dirty && saved !== null)} className="w-full">{busy ? "Saving…" : "Save scorecard"}</Button>
-            <p role="status" className={`text-xs ${saveComplete && !dirty ? "text-success" : "text-muted"}`}>{busy ? "Saving scorecard…" : dirty ? "Unsaved changes" : saveComplete ? "Scorecard saved" : "No unsaved changes"}</p>
-            {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           </CardBody>
         </Card>
         <Card>
@@ -194,6 +193,16 @@ export function ScorecardTab({ data }: { data: CaseData }) {
         </Card>
       </div>
     </fieldset>
+    <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-line-strong bg-surface p-3 shadow-sm sm:p-4">
+      <Button type="submit" disabled={busy || (!dirty && saved !== null)}>{busy ? "Saving…" : "Save scorecard"}</Button>
+      {dirty && <Button type="button" variant="ghost" disabled={busy} onClick={() => {
+        if (!window.confirm("Discard your unsaved scorecard changes?")) return;
+        setForm((current) => ({ ...current, draft: current.baseline }));
+        setSaveComplete(false);
+      }}>Discard changes</Button>}
+      <p role="status" className={`text-xs ${saveComplete && !dirty ? "text-success" : "text-muted"}`}>{busy ? "Saving scorecard…" : dirty ? "Unsaved changes" : saveComplete ? "Scorecard saved" : "No unsaved changes"}</p>
+      {error && <p role="alert" className="w-full text-sm text-danger">{error}</p>}
+    </div>
     </form>
   );
 }

@@ -21,8 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
       <body className="flex min-h-screen flex-col bg-bg text-fg">
         <AppHeader />
-        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 focus:outline-none sm:px-6 sm:py-10">{children}</main>
-        <footer className="mx-auto w-full max-w-7xl px-4 pb-8 pt-10 text-xs leading-5 text-faint sm:px-6">
+        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 focus:outline-none sm:px-6 sm:py-8">{children}</main>
+        <footer className="mx-auto w-full max-w-7xl px-4 pb-6 pt-8 text-xs leading-5 text-faint sm:px-6">
           <div className="flex flex-col gap-2 border-t border-line pt-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
             <span className="shrink-0 font-medium text-muted">Block Consult GmbH</span>
             <p className="max-w-xl sm:text-right">Due diligence supports professional judgment. It is not legal, tax, accounting or investment advice.</p>

@@ -198,6 +198,8 @@ export interface CaseData {
     severity: string;
     confidence: string;
     analysis: string | null;
+    impact: string | null;
+    mitigation: string | null;
     source: string;
   }[];
   redFlags: { id: string; title: string; severity: string; evidence: string | null; mitigation: string | null }[];

@@ -4,6 +4,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Badge, Tag } from "@/components/ui/badge";
+import { DraftForm } from "@/components/ui/draft-form";
+import { MutationNotice } from "./mutation-notice";
 import { useMutate } from "./use-mutate";
 import { ConfirmRemoveButton } from "./confirm-remove-button";
 import { apiPost, apiDelete } from "./api-client";
@@ -51,7 +53,7 @@ function SourceRow({ source, busy, onRemove }: { source: CaseSource; busy: boole
             Redirected to <ExternalLink href={redirectedTo}>{shortUrl(redirectedTo)}</ExternalLink>
           </p>
         )}
-        {source.content && <details className="text-sm"><summary className="cursor-pointer text-link">View extracted content</summary><p className="mt-2 whitespace-pre-wrap break-words leading-relaxed text-muted">{source.content}</p></details>}
+        {source.content && <details className="text-sm"><summary className="cursor-pointer text-link">View extracted content</summary><p className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed text-muted">{source.content}</p></details>}
         {source.notes && <p className="break-words text-xs leading-relaxed text-muted">{source.notes}</p>}
       </div>
       <ConfirmRemoveButton label={`source “${source.name}”`} description="This removes the source from this case. It cannot be undone." onRemove={onRemove} disabled={busy} />
@@ -69,7 +71,7 @@ function ClaimRow({ claim, busy, onRemove }: { claim: EvidenceItem; busy: boolea
         <ConfirmRemoveButton label="evidence claim" description="This removes the claim and its quote from this case. It cannot be undone." onRemove={onRemove} disabled={busy} />
       </div>
       {claim.quote && (
-        <blockquote className="mt-1.5 border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-muted">“{claim.quote}”</blockquote>
+        <blockquote className="mt-1.5 break-words border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-muted">“{claim.quote}”</blockquote>
       )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
         <OriginBadge origin={claim.origin} />
@@ -87,13 +89,15 @@ function ClaimRow({ claim, busy, onRemove }: { claim: EvidenceItem; busy: boolea
           Source: <ExternalLink href={claim.sourceUrl}>{sourceLabel}</ExternalLink>
         </p>
       )}
-      {claim.notes && <p className="mt-1 text-xs leading-relaxed text-faint">{claim.notes}</p>}
+      {claim.notes && <p className="mt-1 break-words text-xs leading-relaxed text-faint">{claim.notes}</p>}
     </div>
   );
 }
 
 export function EvidenceTab({ data }: { data: CaseData }) {
-  const { busy, error, run } = useMutate();
+  const { busy, error, success, run } = useMutate();
+  const [sourceFormOpen, setSourceFormOpen] = useState(data.sources.length === 0);
+  const [claimFormOpen, setClaimFormOpen] = useState(data.evidence.length === 0);
   const [query, setQuery] = useState("");
   const search = query.trim().toLocaleLowerCase();
   const sources = data.sources.filter((source) => [source.name, source.title, source.url, source.sourceType, source.origin].some((value) => value?.toLocaleLowerCase().includes(search)));
@@ -114,7 +118,7 @@ export function EvidenceTab({ data }: { data: CaseData }) {
       reliabilityRating: get("reliabilityRating") || "unknown",
       content: get("content") || undefined,
     };
-    if (await run(() => apiPost(`/api/cases/${data.id}/sources`, payload))) form.reset();
+    if (await run(() => apiPost(`/api/cases/${data.id}/sources`, payload), { success: "Source added to this case." })) form.reset();
   }
 
   async function addClaim(e: FormEvent<HTMLFormElement>) {
@@ -131,21 +135,21 @@ export function EvidenceTab({ data }: { data: CaseData }) {
       corroborated: fd.get("corroborated") === "on",
       sourceUrl: get("sourceUrl") || undefined,
     };
-    if (await run(() => apiPost(`/api/cases/${data.id}/evidence`, payload))) form.reset();
+    if (await run(() => apiPost(`/api/cases/${data.id}/evidence`, payload), { success: "Evidence claim added to this case." })) form.reset();
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-line bg-surface p-4 lg:col-span-2">
         <div className="min-w-0 flex-1 basis-64"><Field label="Search evidence"><Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Source, claim, topic or origin" /></Field></div>
         <p role="status" className="pb-2 text-sm text-muted">{sources.length} of {data.sources.length} sources · {claims.length} of {data.evidence.length} claims</p>
         {query && <Button variant="ghost" type="button" onClick={() => setQuery("")}>Clear search</Button>}
       </div>
-      {error && <div role="alert" className="rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger lg:col-span-2">{error}</div>}
+      {(error || success) && <div className="lg:col-span-2"><MutationNotice error={error} success={success} /></div>}
       <Card>
-        <CardHeader title="Add source" subtitle="Add the document or page behind a claim. Rate its reliability based on the available evidence." />
-        <CardBody>
-          <form onSubmit={addSource}><fieldset disabled={busy} className="min-w-0 space-y-3"><legend className="sr-only">New source</legend>
+        <CardHeader title="Add source" subtitle="Record the document or page behind a claim." action={<Button type="button" variant="outline" size="sm" aria-expanded={sourceFormOpen} aria-controls={`source-form-${data.id}`} aria-label={sourceFormOpen ? "Close source form" : "Add source"} onClick={() => setSourceFormOpen(!sourceFormOpen)}>{sourceFormOpen ? "Close form" : "Add source"}</Button>} />
+        <CardBody id={`source-form-${data.id}`} hidden={!sourceFormOpen}>
+          <DraftForm onSubmit={addSource}><fieldset disabled={busy} className="min-w-0 space-y-3"><legend className="sr-only">New source</legend>
             <Field label="Name / label *"><Input name="name" required placeholder="Project whitepaper v2" /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Source type">
@@ -162,25 +166,15 @@ export function EvidenceTab({ data }: { data: CaseData }) {
             <Field label="URL"><Input name="url" type="url" placeholder="https://…" /></Field>
             <Field label="Title"><Input name="title" /></Field>
             <Field label="Notes / extracted content" hint="Paste key passages that support claims"><Textarea name="content" /></Field>
-            <Button type="submit" size="sm" disabled={busy}>Add source</Button>
-          </fieldset></form>
+            <Button type="submit" disabled={busy} aria-busy={busy}>{busy ? "Saving…" : "Add source"}</Button>
+          </fieldset></DraftForm>
         </CardBody>
       </Card>
 
       <Card>
-        <CardHeader title={`Sources (${data.sources.length})`} subtitle={aiSources ? AI_REPLACED_NOTE : undefined} />
-        <CardBody className="space-y-2">
-          {sources.length === 0 && <p className="empty-state">{search ? "No sources match this search." : "Add a source or run research to begin collecting evidence."}</p>}
-          {sources.map((s) => (
-            <SourceRow key={s.id} source={s} busy={busy} onRemove={() => run(() => apiDelete(`/api/cases/${data.id}/sources/${s.id}`))} />
-          ))}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Record evidence claim" subtitle="A discrete factual claim and how well it is supported." />
-        <CardBody>
-          <form onSubmit={addClaim}><fieldset disabled={busy} className="min-w-0 space-y-3"><legend className="sr-only">New evidence claim</legend>
+        <CardHeader title="Record evidence claim" subtitle="Describe one factual claim and how well it is supported." action={<Button type="button" variant="outline" size="sm" aria-expanded={claimFormOpen} aria-controls={`claim-form-${data.id}`} aria-label={claimFormOpen ? "Close claim form" : "Add claim"} onClick={() => setClaimFormOpen(!claimFormOpen)}>{claimFormOpen ? "Close form" : "Add claim"}</Button>} />
+        <CardBody id={`claim-form-${data.id}`} hidden={!claimFormOpen}>
+          <DraftForm onSubmit={addClaim}><fieldset disabled={busy} className="min-w-0 space-y-3"><legend className="sr-only">New evidence claim</legend>
             <Field label="Claim *"><Textarea name="claimText" required placeholder="The token contract on Ethereum is 0x… per the official docs." /></Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Claim class">
@@ -208,8 +202,18 @@ export function EvidenceTab({ data }: { data: CaseData }) {
             <label className="flex items-center gap-2 text-sm text-muted">
               <input type="checkbox" name="corroborated" className="h-4 w-4 rounded border-line bg-surface accent-accent" /> Corroborated by ≥2 independent sources
             </label>
-            <Button type="submit" size="sm" disabled={busy}>Add claim</Button>
-          </fieldset></form>
+            <Button type="submit" disabled={busy} aria-busy={busy}>{busy ? "Saving…" : "Add claim"}</Button>
+          </fieldset></DraftForm>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title={`Sources (${data.sources.length})`} subtitle={aiSources ? AI_REPLACED_NOTE : undefined} />
+        <CardBody className="space-y-2">
+          {sources.length === 0 && <p className="empty-state">{search ? "No sources match this search." : "Add a source or run research to begin collecting evidence."}</p>}
+          {sources.map((s) => (
+            <SourceRow key={s.id} source={s} busy={busy} onRemove={() => run(() => apiDelete(`/api/cases/${data.id}/sources/${s.id}`), { success: "Source removed." })} />
+          ))}
         </CardBody>
       </Card>
 
@@ -218,7 +222,7 @@ export function EvidenceTab({ data }: { data: CaseData }) {
         <CardBody className="space-y-2">
           {claims.length === 0 && <p className="empty-state">{search ? "No claims match this search." : "Record a claim and its source to build the evidence trail."}</p>}
           {claims.map((c) => (
-            <ClaimRow key={c.id} claim={c} busy={busy} onRemove={() => run(() => apiDelete(`/api/cases/${data.id}/evidence/${c.id}`))} />
+            <ClaimRow key={c.id} claim={c} busy={busy} onRemove={() => run(() => apiDelete(`/api/cases/${data.id}/evidence/${c.id}`), { success: "Evidence claim removed." })} />
           ))}
         </CardBody>
       </Card>

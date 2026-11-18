@@ -173,9 +173,10 @@ export function NarrativePanel({ caseId, ai, active, runs, revision }: { caseId:
     <Card>
       <CardHeader
         title="Report narrative"
-        subtitle="The AI writes prose only. The recommendation comes from the scoring model and its gating rules."
+        subtitle="AI drafting is optional. Scores and blockers determine the recommendation; the narrative supplies the prose."
       />
       <CardBody className="space-y-3">
+        <p className="text-xs leading-relaxed text-muted">After editing intake or structured records, review and redraft the narrative before sharing. Those edits may not mark an existing narrative as out of date.</p>
         {loading === "pending" && !drafting && <p className="text-sm text-faint">Checking for an AI narrative…</p>}
         {loading === "failed" && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-warning"><p>Could not refresh the narrative status.</p><Button variant="outline" size="sm" onClick={() => setReload((value) => value + 1)}>Retry status check</Button></div>}
         {loading === "ready" && !narrative && <p className="text-sm text-muted">No AI narrative yet. The report uses the built-in text.</p>}
