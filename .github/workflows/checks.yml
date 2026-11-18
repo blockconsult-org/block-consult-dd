@@ -28,3 +28,13 @@ jobs:
       - run: npm run test:select
       - run: npm run build
       - run: npm run test:browser
+        env:
+          BC_TRACE_HYDRATION: "1"
+      - name: Upload hydration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hydration-diagnostics
+          path: test-results/hydration-trace/
+          if-no-files-found: warn
+          retention-days: 3
