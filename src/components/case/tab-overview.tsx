@@ -7,6 +7,8 @@ import { Field, Select } from "@/components/ui/field";
 import { useMutate } from "./use-mutate";
 import { apiPatch } from "./api-client";
 import type { CaseData, LatestAiSummary, VerificationCounts } from "./types";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
+import { IntakeEditor } from "./intake-editor";
 import { ResearchPanel } from "./research-panel";
 import { ExternalLink, TONES, plural, providerName } from "./provenance-badges";
 import { CASE_STATUS, QUOTE_VERIFICATION_LABELS, REPORT_TYPE, REPORT_TYPE_LABELS } from "@/domain/enums";
@@ -214,6 +216,7 @@ export function OverviewTab({ data }: { data: CaseData }) {
   }
   const { status, reportType, baseline, saved } = workflow;
   const dirty = status !== baseline.status || reportType !== baseline.reportType;
+  useUnsavedChanges(dirty);
   async function saveWorkflow() {
     const submitted = { status, reportType };
     await run(async () => {
@@ -239,10 +242,12 @@ export function OverviewTab({ data }: { data: CaseData }) {
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       <div className="min-w-0 space-y-5 lg:col-span-2">
+        <section id="case-research" tabIndex={-1} className="scroll-mt-40 rounded-card focus:outline-none">
+          <ResearchPanel caseId={data.id} ai={data.ai} active={data.activeRun} runs={data.researchRuns} />
+        </section>
         <Card>
-          <CardHeader title="Mandate & intake" subtitle="Captured opportunity details — treated as unverified claims until sourced." />
-          <CardBody>
-            {intakeRows.length === 0 && <p className="text-sm leading-relaxed text-muted">No intake details were captured. Add sources and structured records to begin the review.</p>}
+          <IntakeEditor data={data}>
+            {intakeRows.length === 0 && <p className="text-sm leading-relaxed text-muted">No intake details yet. Choose Edit intake to add the terms, assets and questions for this review.</p>}
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
               {intakeRows.map((row) => {
                 const raw = intake[row.key];
@@ -268,10 +273,8 @@ export function OverviewTab({ data }: { data: CaseData }) {
                 );
               })}
             </dl>
-          </CardBody>
+          </IntakeEditor>
         </Card>
-
-        <ResearchPanel caseId={data.id} ai={data.ai} active={data.activeRun} runs={data.researchRuns} />
 
         {data.latestAiSummary && <AiSummaryCard latest={data.latestAiSummary} />}
       </div>
@@ -279,7 +282,8 @@ export function OverviewTab({ data }: { data: CaseData }) {
       <div className="space-y-5">
         <Card>
           <CardHeader title="Workflow" />
-          <CardBody className="space-y-3">
+          <CardBody>
+          <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void saveWorkflow(); }}>
             <Field label="Status">
               <Select value={status} disabled={busy} onChange={(e) => setWorkflow({ ...workflow, status: e.target.value, saved: false })}>
                 {CASE_STATUS.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
@@ -294,16 +298,17 @@ export function OverviewTab({ data }: { data: CaseData }) {
               variant="outline"
               size="sm"
               disabled={busy || !dirty}
-              onClick={() => void saveWorkflow()}
+              type="submit"
             >
               {busy ? "Saving…" : "Save workflow"}
             </Button>
-            <p role="status" className="text-xs text-muted">{dirty ? "Unsaved workflow changes" : saved ? "Workflow saved" : "Changes here update the case and report format."}</p>
+            <p role="status" className="text-xs text-muted">{busy ? "Saving workflow…" : dirty ? "Unsaved workflow changes" : saved ? "Workflow saved" : "Changes here update the case and report format."}</p>
             {error && (
               <p role="alert" className="text-xs text-danger">
                 {error}
               </p>
             )}
+          </form>
           </CardBody>
         </Card>
 

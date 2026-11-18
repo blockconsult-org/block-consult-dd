@@ -56,11 +56,17 @@ After building, run the production browser check against a disposable database:
 ```bash
 npx playwright install chromium
 npm run test:browser
-# Optional: regenerate the four README screenshots from the fictional case
+# Optional: regenerate the interface screenshots from the fictional case
 npm run test:browser -- --screenshots
+npm run test:select
+npm run test:hydration
 ```
 
-This checks both themes, accessibility, narrow layouts, scorecard draft persistence, rule-based research and PDF export. It does not call an AI provider.
+The production browser check covers themes, accessibility, responsive layouts, saving case data, settings persistence, retained drafts, rule-based research and report exports. Provider model lists and connection tests use fixtures; no paid provider calls run. The select check bundles the shared control into a disposable browser fixture and exercises keyboard use, empty values, FormData, required validation, reset behavior and menus inside dialogs.
+
+The hydration check uses Next's bundled React to reproduce a pending route child replay and verify that `RouteContent` preserves the server-rendered page. Its negative control detects the installed renderer's host-child bug; revisit that control when upgrading Next if the upstream bug is fixed.
+
+See [the interface guide](interface.md) for shared components and the save behavior they support. Keep the single named form bridge when changing selects; a second successful control with the same name can silently submit the wrong value.
 
 For database work, create an additive migration, regenerate the Prisma client and verify existing data survives:
 
@@ -92,7 +98,7 @@ Installers appear in `release/`. Build each operating system and processor on a 
 | `npm run desktop:smoke` | Smoke-test the prepared app with temporary user data |
 | `npm run desktop:smoke -- --packaged` | Smoke-test the packaged application |
 
-The build script copies the traced server, static files, Prisma engine and migrations. It removes environment files, databases and server caches from the packaged server. The smoke test checks startup, local access controls, the database, credential encryption, PDF rendering and window creation. On macOS, smoke tests use a mock keychain by default to avoid creating keychain items or waiting on prompts; this checks the encryption bridge, not the real Keychain. An interactive maintainer can opt into the real backend with `BC_SMOKE_REAL_KEYCHAIN=1`. Windows uses its system backend. Linux keychain verification can be skipped when the test environment has no OS keyring; this is reported separately from a passing keychain check.
+The build script copies the traced server, static files, Prisma engine and migrations. It removes environment files, databases and server caches from the packaged server. The smoke test checks startup, local access controls, the database, credential encryption, PDF rendering, window creation and both choices when unsaved edits prevent closing. The close check uses injected choices to avoid displaying a native dialog in CI. On macOS, smoke tests use a mock keychain by default to avoid creating keychain items or waiting on prompts; this checks the encryption bridge, not the real Keychain. An interactive maintainer can opt into the real backend with `BC_SMOKE_REAL_KEYCHAIN=1`. Windows uses its system backend. Linux keychain verification can be skipped when the test environment has no OS keyring; this is reported separately from a passing keychain check.
 
 Keep `appId: com.blockconsult.dd` and `productName: Block Consult DD` stable. Existing installations depend on the app identity and user-data location for cases and encrypted credentials.
 

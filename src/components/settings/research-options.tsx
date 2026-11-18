@@ -1,71 +1,69 @@
 "use client";
+
 import * as React from "react";
 import type { AiSettings, AiSettingsPatch, ResearchDepth } from "@/ai/settings";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Field, Select } from "@/components/ui/field";
+import { errorText } from "./request";
 
-/** Mirrors DEPTH_BUDGETS in src/ai/settings.ts, which is server-only. */
 const DEPTHS: { id: ResearchDepth; title: string; detail: string }[] = [
-  { id: "quick", title: "Quick", detail: "Up to 8 searches and 6 pages read. A first look in a few minutes." },
-  { id: "standard", title: "Standard", detail: "Up to 20 searches and 15 pages read. Suits most cases." },
-  { id: "deep", title: "Deep", detail: "Up to 40 searches and 30 pages read. Slower and uses the most tokens." },
+  { id: "quick", title: "Quick", detail: "Requests up to 8 searches and 6 page reads." },
+  { id: "standard", title: "Standard", detail: "Requests up to 20 searches and 15 page reads." },
+  { id: "deep", title: "Deep", detail: "Requests up to 40 searches and 30 page reads. Uses the most time and tokens." },
 ];
 
-export function ResearchOptions({ research, onSave }: { research: AiSettings["research"]; onSave: (patch: AiSettingsPatch) => Promise<boolean> }) {
+export function ResearchOptions({ research, onSave, onDraftChange }: {
+  research: AiSettings["research"];
+  onSave: (patch: AiSettingsPatch) => Promise<void>;
+  onDraftChange: (id: string, dirty: boolean) => void;
+}) {
+  const [draft, setDraft] = React.useState(research);
   const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [saved, setSaved] = React.useState(false);
+  const dirty = draft.depth !== research.depth || draft.verifySources !== research.verifySources;
+  React.useEffect(() => onDraftChange("research", dirty), [dirty, onDraftChange]);
 
-  async function update(patch: Partial<AiSettings["research"]>) {
+  async function save() {
     setBusy(true);
-    await onSave({ research: patch });
-    setBusy(false);
+    setError(null);
+    setSaved(false);
+    try {
+      await onSave({ research: draft });
+      setSaved(true);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <Card>
-      <CardHeader title="Research" subtitle="Applies to every provider." />
+      <CardHeader title="Research defaults" subtitle="These settings apply to future AI research runs with every provider." />
       <CardBody className="space-y-5">
-        <fieldset>
-          <legend className="label">Depth</legend>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {DEPTHS.map((depth) => (
-              <label
-                key={depth.id}
-                className={cn(
-                  "flex cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2.5 transition-colors duration-150 ease-out focus-within:ring-2 focus-within:ring-accent/40",
-                  research.depth === depth.id ? "border-accent/60 bg-accent/10" : "border-line hover:border-line-strong",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="research-depth"
-                  value={depth.id}
-                  checked={research.depth === depth.id}
-                  disabled={busy}
-                  onChange={() => void update({ depth: depth.id })}
-                  className="sr-only"
-                />
-                <span className="text-sm font-medium text-fg">{depth.title}</span>
-                <span className="text-xs leading-relaxed text-muted">{depth.detail}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 accent-accent"
-            checked={research.verifySources}
-            disabled={busy}
-            onChange={(e) => void update({ verifySources: e.target.checked })}
-          />
+        <div className="max-w-md">
+          <Field label="Research depth" hint={DEPTHS.find((depth) => depth.id === draft.depth)?.detail}>
+            <Select value={draft.depth} disabled={busy} onChange={(event) => { setDraft({ ...draft, depth: event.target.value as ResearchDepth }); setSaved(false); setError(null); }}>
+              {DEPTHS.map((depth) => <option key={depth.id} value={depth.id}>{depth.title}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <p className="text-xs leading-5 text-muted">CLI providers receive these budgets as instructions. They are not a guaranteed spending limit.</p>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line px-4 py-3">
+          <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-accent" checked={draft.verifySources} disabled={busy} onChange={(event) => { setDraft({ ...draft, verifySources: event.target.checked }); setSaved(false); setError(null); }} />
           <span>
-            <span className="block text-sm text-fg">Check quotes against the cited pages</span>
-            <span className="block text-xs leading-relaxed text-muted">
-              After research, the app downloads each cited page and checks that the quoted text is on it. Claims whose quote can’t be found are
-              marked and their confidence lowered. Pages are fetched from this computer.
-            </span>
+            <span className="block text-sm font-medium text-fg">Check quotes against cited pages</span>
+            <span className="mt-1 block text-xs leading-5 text-muted">The app downloads each cited page from this computer and looks for the quote. Missing quotes are marked and lower the claim&apos;s confidence. A matching quote does not verify the claim itself.</span>
           </span>
         </label>
+        <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+          <Button type="button" size="sm" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save research settings"}</Button>
+          {dirty && <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setDraft(research); setError(null); setSaved(false); }}>Discard changes</Button>}
+          <span role="status" className={dirty ? "text-xs text-warning" : "text-xs text-muted"}>{busy ? "Saving research settings…" : dirty ? "Unsaved changes" : saved ? "Research settings saved" : "All changes saved"}</span>
+          {error && <p role="alert" className="w-full text-sm text-danger">{error} Your draft is kept. Try saving again.</p>}
+        </div>
       </CardBody>
     </Card>
   );

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { CustomSelect, type SelectProps } from "./select";
 
 type ControlAttributes = Pick<React.InputHTMLAttributes<HTMLInputElement>, "id" | "aria-describedby" | "aria-invalid">;
 
@@ -47,10 +48,10 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
 );
 Textarea.displayName = "Textarea";
 
-export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
-  ({ className, children, ...props }, ref) => {
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  (props, ref) => {
     const field = React.useContext(FieldContext);
-    return <select ref={ref} className={cn("input pr-8", className)} {...props} {...controlAttributes(props, field)}>{children}</select>;
+    return <CustomSelect ref={ref} {...props} {...controlAttributes(props, field)} />;
   },
 );
 Select.displayName = "Select";

@@ -86,7 +86,7 @@ describe("scorecard blocker persistence", () => {
   });
 
   it("backfills recognized legacy blocker labels without inventing an origin", async () => {
-    const legacy = new PrismaClient({ datasources: { db: { url: `file:${path.join(directory, "legacy.db")}` } } });
+    const legacy = new PrismaClient({ datasources: { db: { url: `file:${path.join(directory, "legacy.db")}?connection_limit=1` } } });
     try {
       await legacy.$executeRawUnsafe('CREATE TABLE "Scorecard" ("id" TEXT PRIMARY KEY, "gatingApplied" TEXT NOT NULL)');
       const cases = [
@@ -99,9 +99,11 @@ describe("scorecard blocker persistence", () => {
       for (const [id, labels] of cases) await legacy.$executeRawUnsafe('INSERT INTO "Scorecard" ("id", "gatingApplied") VALUES (?, ?)', id, labels);
       const sql = await readFile(path.resolve("prisma/migrations/0004_manual_gating/migration.sql"), "utf8");
       for (const statement of splitSqlStatements(sql)) await legacy.$executeRawUnsafe(statement);
-      const rows = await legacy.$queryRawUnsafe<{ id: string; manualGating: string }[]>('SELECT "id", "manualGating" FROM "Scorecard"');
+      const [engine] = await legacy.$queryRawUnsafe<{ version: string }[]>("SELECT sqlite_version() AS version");
+      const rows = await legacy.$queryRawUnsafe<{ id: string; gatingApplied: string; manualGating: string }[]>('SELECT "id", "gatingApplied", "manualGating" FROM "Scorecard"');
       for (const row of rows) {
-        expect(readSavedGating(row.manualGating)).toEqual(row.id === "all" ? Object.fromEntries(GATING_RULES.map(({ flag }) => [flag, true])) : {});
+        const diagnostic = `SQLite ${engine?.version}; legacy migration row ${JSON.stringify(row)}`;
+        expect(readSavedGating(row.manualGating), diagnostic).toEqual(row.id === "all" ? Object.fromEntries(GATING_RULES.map(({ flag }) => [flag, true])) : {});
       }
     } finally {
       await legacy.$disconnect();

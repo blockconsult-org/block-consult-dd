@@ -27,6 +27,7 @@ import { APP_VERSION_ARG, IpcChannel } from "./ipc-channels";
 import { installFileLogging } from "./logging";
 import { findFreePort, findPrismaEngine, startNextServer, waitForHealth, withTimeout } from "./server";
 import { runSmokeTest, smokeFailure, writeSmokeResult, type KeychainMode } from "./smoke-test";
+import { protectUnsavedChanges } from "./window-behavior";
 
 const processStart = Date.now();
 const HOST = "127.0.0.1";
@@ -247,14 +248,15 @@ function showMainWindow(origin: string): void {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1100,
-    minHeight: 640,
+    minWidth: 640,
+    minHeight: 480,
     show: false,
     backgroundColor: "#08090a",
     title: "Block Consult DD",
     webPreferences: appWebPreferences(),
   });
   mainWindow = win;
+  protectUnsavedChanges(win);
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;

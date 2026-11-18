@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Monitor, Moon, Sun } from "lucide-react";
-import { applyStoredTheme, saveTheme, THEME_COOKIE_NAME, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { Select } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
+import { applyStoredTheme, saveTheme, THEME_CHANGE_EVENT, THEME_COOKIE_NAME, THEME_STORAGE_KEY, type ThemePreference } from "./theme";
 
-export function ThemeSelect() {
+export function ThemeSelect({ id, label = "Appearance", className, compact = false }: { id?: string; label?: string; className?: string; compact?: boolean }) {
   const [preference, setPreference] = React.useState<ThemePreference>("system");
 
   React.useEffect(() => {
@@ -12,22 +14,28 @@ export function ThemeSelect() {
     sync();
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onStorage = (event: StorageEvent) => { if (event.key === THEME_STORAGE_KEY) sync(); };
+    const onTheme = (event: Event) => {
+      if (event instanceof CustomEvent && (event.detail === "light" || event.detail === "dark" || event.detail === "system")) setPreference(event.detail);
+    };
     media.addEventListener("change", sync);
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", sync);
+    window.addEventListener(THEME_CHANGE_EVENT, onTheme);
     return () => {
       media.removeEventListener("change", sync);
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", sync);
+      window.removeEventListener(THEME_CHANGE_EVENT, onTheme);
     };
   }, []);
 
   const Icon = preference === "system" ? Monitor : preference === "dark" ? Moon : Sun;
   return (
-    <div className="relative shrink-0">
-      <Icon aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted sm:left-3" />
-      <select
-        aria-label="Appearance"
+    <div className={cn("relative w-36 shrink-0", compact && "w-11 sm:w-36", className)}>
+      <Icon aria-hidden className={cn("pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted", compact && "left-3.5 sm:left-3")} />
+      <Select
+        id={id}
+        aria-label={label}
         title={`Appearance: ${preference}`}
         value={preference}
         onChange={(event) => {
@@ -35,13 +43,12 @@ export function ThemeSelect() {
           setPreference(next);
           saveTheme(next);
         }}
-        className="h-11 w-11 cursor-pointer appearance-none rounded-md border border-line-strong bg-surface px-0 text-transparent transition-colors duration-160 ease-standard hover:border-control hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-link focus-visible:ring-offset-2 focus-visible:ring-offset-bg sm:h-10 sm:w-28 sm:pl-9 sm:pr-7 sm:text-xs sm:text-muted"
+        className={cn("pl-9", compact && "px-0 [&>span:first-child]:invisible [&>svg]:hidden sm:pl-9 sm:pr-10 sm:[&>span:first-child]:visible sm:[&>svg]:block")}
       >
         <option className="bg-surface text-fg" value="system">System</option>
         <option className="bg-surface text-fg" value="light">Light</option>
         <option className="bg-surface text-fg" value="dark">Dark</option>
-      </select>
-      <ChevronDown aria-hidden className="pointer-events-none absolute right-2 top-1/2 hidden h-3 w-3 -translate-y-1/2 text-faint sm:block" />
+      </Select>
     </div>
   );
 }

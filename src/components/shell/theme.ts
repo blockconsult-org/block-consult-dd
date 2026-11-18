@@ -2,6 +2,7 @@ export type ThemePreference = "system" | "light" | "dark";
 
 export const THEME_STORAGE_KEY = "bc-dd-theme";
 export const THEME_COOKIE_NAME = "bc_dd_theme";
+export const THEME_CHANGE_EVENT = "bc-dd-theme-change";
 
 /** Self-contained so the same logic can run before paint and after hydration. */
 export function applyStoredTheme(storageKey: string, cookieName: string): ThemePreference {
@@ -37,4 +38,5 @@ export function saveTheme(preference: ThemePreference) {
   document.documentElement.dataset.theme = theme;
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#08090a" : "#f7f8fa");
+  window.dispatchEvent(new CustomEvent<ThemePreference>(THEME_CHANGE_EVENT, { detail: preference }));
 }
