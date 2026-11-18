@@ -4,6 +4,7 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppReady } from "@/components/shell/app-ready";
 
 type TriggerEvents = Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, "onFocus" | "onBlur" | "onKeyDown" | "onKeyUp" | "onClick" | "onPointerDown">;
 
@@ -46,6 +47,7 @@ const decode = (value: string) => value.slice("option:".length);
 /** Custom presentation with a native bridge for FormData, refs, extraction, resets and validation. */
 export const CustomSelect = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ children, className, style, value, defaultValue, disabled, required, id, title, autoFocus, tabIndex, onChange, onInvalid, onFocus, onBlur, onKeyDown, onKeyUp, onClick, onPointerDown, ...props }, forwardedRef) => {
+    const appReady = useAppReady();
     const generatedId = React.useId();
     const triggerId = id ?? `select-${generatedId}`;
     const native = React.useRef<HTMLSelectElement>(null);
@@ -123,11 +125,11 @@ export const CustomSelect = React.forwardRef<HTMLSelectElement, SelectProps>(
         // Radix's nameless autofill bridge must not duplicate the named control's form events.
         if (event.nativeEvent.target !== native.current) event.stopPropagation();
       }}>
-        <SelectPrimitive.Root value={selectedOption ? encode(selected) : encode(firstValue)} onValueChange={choose} disabled={disabled} dir={props.dir === "rtl" ? "rtl" : "ltr"}>
+        <SelectPrimitive.Root value={selectedOption ? encode(selected) : encode(firstValue)} onValueChange={choose} disabled={disabled || !appReady} dir={props.dir === "rtl" ? "rtl" : "ltr"}>
           <SelectPrimitive.Trigger ref={trigger} id={triggerId} autoFocus={autoFocus} tabIndex={tabIndex}
             onFocus={onFocus} onBlur={onBlur} onKeyDown={onKeyDown} onKeyUp={onKeyUp} onClick={onClick} onPointerDown={onPointerDown}
             aria-label={props["aria-label"]} aria-labelledby={props["aria-labelledby"]} aria-describedby={description}
-            aria-invalid={validation ? true : props["aria-invalid"]} aria-required={required} title={title ?? selectedOption?.label}
+            aria-invalid={validation ? true : props["aria-invalid"]} aria-required={required} aria-busy={!appReady || undefined} title={title ?? selectedOption?.label}
             style={style} className={cn("input group relative flex items-center text-left pr-10", className)}>
             <span className="min-w-0 flex-1 truncate"><SelectPrimitive.Value>{(selectedOption ? selectedOption.label : options.find((option) => option.value === firstValue)?.label) || "None"}</SelectPrimitive.Value></span>
             <SelectPrimitive.Icon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" asChild>

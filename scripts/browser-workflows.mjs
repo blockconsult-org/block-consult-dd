@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 
 /** Interact with the visible custom control, never its hidden form bridge. */
-export async function choose(page, name, option, scope = page) {
+export async function choose(page, name, option, scope = page, onAction) {
+  onAction?.(`Opening ${name}`);
   await scope.getByRole("combobox", { name, exact: true }).click();
+  onAction?.(`Choosing ${option} in ${name}`);
   await page.getByRole("option", { name: option, exact: true }).click();
+  onAction?.(`Chose ${option} in ${name}`);
 }
 
 const visibleField = (page, name) => page.getByLabel(name, { exact: true }).filter({ visible: true });
@@ -16,6 +19,36 @@ export async function installProviderFixtures(page) {
   await page.route("**/api/settings/ai/test", (route) => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, message: "Fixture connection verified.", detail: "Synthetic provider; no external request." }),
   }));
+}
+
+export async function verifyInitialHydration({ page, url, onAction }) {
+  // Keep the server-rendered controls visible while their page code is unavailable.
+  const pattern = "**/_next/static/chunks/app/cases/new/page-*.js";
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const holdScript = async (route) => { await gate; await route.continue(); };
+  await page.route(pattern, holdScript);
+  try {
+    const requested = page.waitForRequest((request) => new URL(request.url()).pathname.startsWith("/_next/static/chunks/app/cases/new/page-"));
+    onAction?.("Loading intake with its page script held");
+    await page.goto(`${url}/cases/new`, { waitUntil: "commit" });
+    await requested;
+    const appearance = page.getByRole("combobox", { name: "Appearance", exact: true });
+    await appearance.waitFor();
+    assert(await appearance.isDisabled(), "Appearance must not accept a click before the document shell hydrates");
+    const main = await page.locator("#main-content").elementHandle();
+    const form = await page.locator("main form").elementHandle();
+    assert(main && form, "The intake content must remain server-rendered while its script is pending");
+    onAction?.("Releasing intake page script");
+    release();
+    await page.waitForLoadState("load");
+    await choose(page, "Appearance", "Light", page, onAction);
+    assert(await main.evaluate((element) => element === document.getElementById("main-content")), "Hydration must retain the rendered main element");
+    assert(await form.evaluate((element) => element.isConnected && element === document.querySelector("main form")), "Hydration must retain the rendered intake form");
+  } finally {
+    release();
+    await page.unroute(pattern, holdScript);
+  }
 }
 
 async function saveResponse(page, path, method, action) {

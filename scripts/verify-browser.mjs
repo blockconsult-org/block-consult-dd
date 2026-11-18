@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
-import { choose, installProviderFixtures, verifyCaseWorkflows, verifySettingsWorkflows } from "./browser-workflows.mjs";
+import { choose, installProviderFixtures, verifyCaseWorkflows, verifyInitialHydration, verifySettingsWorkflows } from "./browser-workflows.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const capture = process.argv.includes("--screenshots");
@@ -88,11 +88,16 @@ try {
   await installProviderFixtures(page);
   const errors = [];
   let stage = "initializing";
+  let action = "Initializing browser";
+  let actionStartedAt = Date.now();
+  const doing = (description) => { action = description; actionStartedAt = Date.now(); };
   page.on("pageerror", (error) => {
-    const detail = { stage, url: page.url(), message: error.message, stack: error.stack };
+    const detail = { stage, action, actionStartedAt, errorAt: Date.now(), url: page.url(), message: error.message, stack: error.stack };
     errors.push(detail);
     console.error("Browser runtime error", JSON.stringify(detail));
   });
+  stage = "initial hydration";
+  await verifyInitialHydration({ page, url, onAction: doing });
   const tabs = ["overview", "evidence", "records", "findings", "scorecard", "report"];
   const screens = [["dashboard", "/"], ["intake", "/cases/new"], ["settings", "/settings"],
     ["appearance", "/settings", "Appearance"], ["research-settings", "/settings", "Research"], ["usage", "/settings", "Usage"], ["unlock", "/unlock"],
@@ -106,9 +111,11 @@ try {
   for (const theme of ["light", "dark"]) {
     for (const [name, route, section] of screens) {
       stage = `${theme}/${name}`;
+      doing(`Loading ${route}`);
       await page.goto(url + route);
+      doing(`Loaded ${route}`);
       if (route === "/settings") await page.getByRole("tab", { name: section ?? "AI providers", exact: true }).click();
-      await choose(page, "Appearance", theme === "light" ? "Light" : "Dark");
+      await choose(page, "Appearance", theme === "light" ? "Light" : "Dark", page, doing);
       if (name === "unlock") {
         await page.route("**/api/unlock", (route) => route.fulfill({ status: 401, contentType: "application/json", body: '{"error":"The token was not accepted."}' }));
         await page.getByLabel("Access token", { exact: true }).fill("synthetic-invalid-token");
@@ -121,6 +128,7 @@ try {
       await page.evaluate(() => document.fonts.ready);
       // Theme/tab color transitions must settle before measuring contrast.
       await page.waitForTimeout(220);
+      doing("Measuring accessibility and responsive layout");
       const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
       assert.deepEqual(result.violations.map((item) => ({ id: item.id, targets: item.nodes.map((node) => ({ target: node.target, reason: node.failureSummary })) })), [], `${theme}/${name}: accessibility`);
       for (const width of [360, 768, 1024, 1440]) {
@@ -168,7 +176,7 @@ try {
   assert.equal(pdf.status, 200);
   assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-");
   assert.deepEqual(errors, [], "Browser runtime errors");
-  console.log(`PASS: ${screens.length * 2} screen/theme accessibility checks, ${screens.length * 8} responsive checks, short windows and zoom, case/settings workflows, draft/save/reload, offline research, report and PDF exports.`);
+  console.log(`PASS: SSR hydration, ${screens.length * 2} screen/theme accessibility checks, ${screens.length * 8} responsive checks, short windows and zoom, case/settings workflows, draft/save/reload, offline research, report and PDF exports.`);
   if (capture) console.log("Captured eight fictional-case screenshots in docs/screenshots/.");
 } catch (error) {
   console.error(log);
