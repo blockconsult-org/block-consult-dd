@@ -87,7 +87,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const tabs = ["overview", "evidence", "records", "findings", "scorecard", "report"];
-  const screens = [["dashboard", "/"], ["intake", "/cases/new"], ["settings", "/settings"],
+  const screens = [["dashboard", "/"], ["intake", "/cases/new"], ["settings", "/settings"], ["unlock", "/unlock"],
     ...tabs.map((tab) => [tab, `/cases/${id}?tab=${tab}`])];
   const screenshots = new Map([
     ["light/dashboard", "dashboard-light.png"], ["dark/overview", "case-overview-dark.png"],
@@ -98,6 +98,13 @@ try {
     for (const [name, route] of screens) {
       await page.goto(url + route);
       await page.getByLabel("Appearance", { exact: true }).selectOption(theme);
+      if (name === "unlock") {
+        await page.route("**/api/unlock", (route) => route.fulfill({ status: 401, contentType: "application/json", body: '{"error":"The token was not accepted."}' }));
+        await page.getByLabel("Access token", { exact: true }).fill("synthetic-invalid-token");
+        await page.getByRole("button", { name: "Unlock", exact: true }).click();
+        await page.getByRole("alert").waitFor();
+        await page.unroute("**/api/unlock");
+      }
       if (tabs.includes(name)) await page.getByRole("tab", { name: name[0].toUpperCase() + name.slice(1), exact: true, selected: true }).waitFor();
       await page.waitForFunction((expected) => document.documentElement.dataset.theme === expected, theme);
       await page.evaluate(() => document.fonts.ready);
@@ -129,7 +136,7 @@ try {
   assert.equal(pdf.status, 200);
   assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-");
   assert.deepEqual(errors, [], "Browser runtime errors");
-  console.log("PASS: 18 screen/theme accessibility checks, 72 responsive checks, draft/save/reload, offline research, report and PDF exports.");
+  console.log("PASS: 20 screen/theme accessibility checks, 80 responsive checks, draft/save/reload, offline research, report and PDF exports.");
   if (capture) console.log("Captured four fictional-case screenshots in docs/screenshots/.");
 } catch (error) {
   console.error(log);

@@ -53,7 +53,7 @@ export function UnlockForm() {
         />
       </div>
       {error && (
-        <p id="access-token-error" role="alert" className="text-xs text-red-300">
+        <p id="access-token-error" role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}
