@@ -92,7 +92,7 @@ Installers appear in `release/`. Build each operating system and processor on a 
 | `npm run desktop:smoke` | Smoke-test the prepared app with temporary user data |
 | `npm run desktop:smoke -- --packaged` | Smoke-test the packaged application |
 
-The build script copies the traced server, static files, Prisma engine and migrations. It removes environment files, databases and server caches from the packaged server. The smoke test checks startup, local access controls, the database, credential encryption, PDF rendering and window creation. Linux keychain verification can be skipped when the test environment has no OS keyring; this is reported separately from a passing keychain check.
+The build script copies the traced server, static files, Prisma engine and migrations. It removes environment files, databases and server caches from the packaged server. The smoke test checks startup, local access controls, the database, credential encryption, PDF rendering and window creation. On macOS, smoke tests use a mock keychain by default to avoid creating keychain items or waiting on prompts; this checks the encryption bridge, not the real Keychain. An interactive maintainer can opt into the real backend with `BC_SMOKE_REAL_KEYCHAIN=1`. Windows uses its system backend. Linux keychain verification can be skipped when the test environment has no OS keyring; this is reported separately from a passing keychain check.
 
 Keep `appId: com.blockconsult.dd` and `productName: Block Consult DD` stable. Existing installations depend on the app identity and user-data location for cases and encrypted credentials.
 
