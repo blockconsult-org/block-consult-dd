@@ -4,11 +4,13 @@
  * stdout. main.ts exits with 0 when every check passed, 1 otherwise.
  */
 import fs from "node:fs";
+import { once } from "node:events";
 import http from "node:http";
 import path from "node:path";
 import { BrowserWindow, app } from "electron";
 import type { DesktopBridge } from "../src/lib/desktop-bridge";
 import { isRecord, withTimeout } from "./server";
+import { protectUnsavedChanges } from "./window-behavior";
 
 export type KeychainMode = "mock" | "system";
 
@@ -132,6 +134,31 @@ function describeRuntime(keychain: KeychainMode): Omit<SmokeResult, "ok" | "stat
   };
 }
 
+async function checkUnsavedChanges(ctx: SmokeContext): Promise<string> {
+  const win = new BrowserWindow({ show: false, webPreferences: ctx.webPreferences });
+  let choices = 0;
+  protectUnsavedChanges(win, () => ++choices === 2);
+  try {
+    await withTimeout(win.loadURL(`${ctx.origin}/`), 30_000, "draft-check window did not load");
+    await win.webContents.executeJavaScript(`window.addEventListener("beforeunload", event => {
+      event.preventDefault(); event.returnValue = "";
+    });`);
+    const prevented = once(win.webContents, "will-prevent-unload");
+    win.close();
+    await withTimeout(prevented, 5_000, "unsaved edits did not request a close choice");
+    if (win.isDestroyed() || choices !== 1) throw new Error("Keep editing did not preserve the window");
+    // Round-trip to the renderer after Electron finishes cancelling the first close.
+    if (!(await win.webContents.executeJavaScript("document.body.isConnected"))) throw new Error("The kept page is unavailable");
+    const closed = once(win, "closed");
+    win.close();
+    await withTimeout(closed, 5_000, "Discard changes did not close the window");
+    if (Number(choices) !== 2) throw new Error("Closing did not request an explicit discard choice");
+    return "Keep editing preserves the window; Discard changes allows closing";
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
+  }
+}
+
 export async function runSmokeTest(ctx: SmokeContext, processStart: number): Promise<SmokeResult> {
   const get = (pathname: string, withCookie: boolean): Promise<Response> =>
     ctx.fetchImpl(`${ctx.origin}${pathname}`, {
@@ -203,6 +230,7 @@ export async function runSmokeTest(ctx: SmokeContext, processStart: number): Pro
     }),
   );
   checks.push(await check("window", () => checkWindow(ctx)));
+  checks.push(await check("unsaved-changes", () => checkUnsavedChanges(ctx)));
   checks.push(
     await check("server-folder-unchanged", async () => {
       // Runs last so it sees writes from every request above, e.g. Next's image cache.

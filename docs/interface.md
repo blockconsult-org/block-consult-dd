@@ -2,7 +2,7 @@
 
 ## Cases and navigation
 
-Cases and Settings stay available in the header at every window size. The dashboard keeps its search, status, sorting and red-flag filter during the browser session, so returning from a case restores the list you were using.
+Cases and Settings stay available in the header at every window size. Desktop windows can be resized down to 640 × 480. The dashboard keeps its search, status, sorting and red-flag filter during the browser session, so returning from a case restores the list you were using.
 
 The case overview shows the next review steps, research controls and the intake. Use **Edit intake** to update an existing case. Saving an intake edit keeps document requests, counterparties and nested details that the form does not expose. In **Records**, use the edit action beside a record to change its fields. Token allocations and unlock schedules remain intact when editing the token's other fields.
 
@@ -41,6 +41,9 @@ AI narrative freshness keeps its existing rules. Intake and structured-record ed
 | `components/ui/use-unsaved-changes.ts` | Shared protection for unsaved edits and navigation |
 | `components/ui/card.tsx`, `button.tsx` | Consistent containers, headings, actions and focus states |
 | `components/shell/theme-select.tsx` | Light, Dark and System selection in the header and Settings |
+| `components/shell/app-shell.tsx`, `app-ready.tsx` | Shared document layout and readiness before portal controls become interactive |
 | `components/case/intake-fields.tsx` | Intake fields shared by creation and editing |
 
 Use semantic color tokens from `globals.css` and the spacing, typography and motion tokens in `tailwind.config.ts`. Report HTML and PDF retain their separate document design system.
+
+The shell enables selects after its initial hydration commits. Keep this boundary when changing the header or adding portal controls; server-rendered fields should not accept clicks before their handlers are ready. The native form bridge retains its own disabled state and submission behavior.
