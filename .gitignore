@@ -1,0 +1,57 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next
+/.next/
+/out/
+next-env.d.ts
+
+# production (build/ holds the desktop icon and entitlements, which are tracked)
+/build/*
+!/build/entitlements.mac.plist
+!/build/icon.png
+
+# data & generated artifacts
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/*.db-wal
+/prisma/*.db-shm
+/storage/
+
+# env
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+*.p12
+*.pfx
+*.key
+.claude/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vscode/
+.idea/
+
+# test
+/coverage
+
+# playwright
+/test-results/
+/playwright-report/
+
+# desktop app & local data
+/.bc-data/
+/dist-electron/
+/release/
+/prisma/*.db.backup-*
+
+# typescript incremental build info
+*.tsbuildinfo
+
+# local session notes
+/SESSION_HANDOFF.md

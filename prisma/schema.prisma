@@ -1,0 +1,687 @@
+// Block Consult GmbH — Crypto / Token / RWA / Stablecoin Due-Diligence Tool
+// Canonical data model for cases, evidence, analysis, reports and local settings.
+//
+// Notes:
+// - Default provider is SQLite for zero-config local MVP. To use PostgreSQL,
+//   change `provider` to "postgresql" and set DATABASE_URL accordingly.
+// - Enum-like fields are stored as String and validated with Zod at the API
+//   boundary (see src/domain). This keeps the schema portable across engines.
+// - Fields documented as "JSON" hold a JSON-encoded string; (de)serialised via
+//   the codecs in src/domain/json.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users / auth (optional layer)
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("analyst") // analyst | reviewer | admin
+  createdAt DateTime @default(now())
+  cases     DDCase[]
+}
+
+// ---------------------------------------------------------------------------
+// Central case (≈ ReportRun in data-models.md)
+// ---------------------------------------------------------------------------
+
+model DDCase {
+  id              String   @id @default(cuid())
+  projectName     String
+  clientName      String?
+  status          String   @default("draft") // draft | qa | final | archived
+  reportType      String   @default("full_institutional") // see ReportType enum
+  analyst         String?
+  brand           String   @default("Block Consult GmbH")
+  confidentiality String   @default("Private and confidential")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  intake          IntakeInput?
+  sources         Source[]
+  evidenceClaims  EvidenceClaim[]
+  entities        Entity[]
+  people          Person[]
+  tokens          Token[]
+  contracts       TokenContract[]
+  markets         ExchangeMarket[]
+  holderSnaps     HolderSnapshot[]
+  liquiditySnaps  LiquiditySnapshot[]
+  slippages       SlippageEstimate[]
+  stablecoins     StablecoinProfile[]
+  rwaAssets       RWAAssetProfile[]
+  findings        RiskFinding[]
+  redFlags        RedFlag[]
+  scorecard       Scorecard?
+  reports         Report[]
+  generatedFiles  GeneratedFile[]
+  researchRuns    ResearchRun[]
+  narrative       CaseNarrative?
+}
+
+// ---------------------------------------------------------------------------
+// Intake (≈ Intake)
+// ---------------------------------------------------------------------------
+
+model IntakeInput {
+  id                      String   @id @default(cuid())
+  caseId                  String   @unique
+  case                    DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  projectName             String
+  tickers                 String   @default("[]") // JSON string[]
+  links                   String   @default("[]") // JSON string[]
+  contractAddresses       String   @default("[]") // JSON {chain,address}[]
+  chains                  String   @default("[]") // JSON string[]
+  claimedPartnerships     String   @default("[]") // JSON string[]
+  claimedExchangeListings String   @default("[]") // JSON string[]
+  walletAddresses         String   @default("[]") // JSON string[]
+  counterparties          String   @default("[]") // JSON Counterparty[]
+  documents               String   @default("[]") // JSON DocumentRef[]
+  questionsToVerify       String   @default("[]") // JSON string[]
+
+  offerType               String?
+  offerPrice              String?
+  investmentAmount        String?
+  lockupVesting           String?
+  sellerDetails           String?
+  clientJurisdiction      String?
+  issuerJurisdiction      String?
+  notes                   String?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Sources & evidence (≈ EvidenceItem + claim linkage)
+// ---------------------------------------------------------------------------
+
+model Source {
+  id               String   @id @default(cuid())
+  caseId           String
+  case             DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  name             String
+  title            String?
+  sourceType       String   @default("unknown") // SourceType enum
+  url              String?
+  finalUrl         String?
+  retrievedAt      DateTime @default(now())
+  retrievedBy      String?
+  httpStatus       Int?
+  contentHash      String?
+  rawPath          String?
+  textPath         String?
+  screenshotPath   String?
+  pdfPath          String?
+  content          String?  // extracted text used by analysis workers
+  reliabilityRating String  @default("unknown") // high | medium | low | unknown
+  notes            String?
+  origin           String   @default("manual") // manual | ai
+  researchRunId    String?  // research run that created this row (AI origin only)
+  createdAt        DateTime @default(now())
+
+  claims           EvidenceClaim[]
+}
+
+model EvidenceClaim {
+  id                   String   @id @default(cuid())
+  caseId               String
+  case                 DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sourceId             String?
+  source               Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  claimText            String
+  sourceUrl            String?
+  sourceTitle          String?
+  sourceType           String   @default("unknown") // SourceType enum
+  claimClass           String   @default("secondary") // primary | secondary | community | market | unsupported
+  reliabilityRating    String   @default("unknown") // high | medium | low | unknown
+  confidence           String   @default("medium")   // high | medium | low
+  corroborated         Boolean  @default(false)
+  corroboratingIds     String   @default("[]") // JSON string[] of evidence ids
+  retrievedAt          DateTime @default(now())
+  notes                String?
+  origin               String   @default("manual") // manual | ai
+  researchRunId        String?  // research run that created this row (AI origin only)
+  topic                String?  // identity | entity | team | tokenomics | market | onchain | legal | partnership | security | business | stablecoin | rwa | other
+  quote                String?  // verbatim excerpt the claim relies on (AI research)
+  verification         String?  // verified | partial | not_found | unreachable | blocked (quote checked against the fetched page)
+  verifiedAt           DateTime?
+  createdAt            DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Entities & people
+// ---------------------------------------------------------------------------
+
+model Entity {
+  id                 String   @id @default(cuid())
+  caseId             String
+  case               DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  name               String
+  aliases            String   @default("[]") // JSON string[]
+  entityType         String   @default("unknown") // EntityType enum
+  role               String?
+  jurisdiction       String?
+  registrationNumber String?
+  registeredAddress  String?
+  incorporationDate  String?
+  status             String   @default("unknown") // active | dissolved | unknown
+  website            String?
+  licenses           String   @default("[]") // JSON License[]
+  sourceIds          String   @default("[]") // JSON string[]
+  confidence         String   @default("low") // high | medium | low
+  notes              String?
+  createdAt          DateTime @default(now())
+}
+
+model Person {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  fullName          String
+  aliases           String   @default("[]") // JSON string[]
+  roles             String   @default("[]") // JSON Role[]
+  linkedinUrl       String?
+  xUrl              String?
+  githubUrl         String?
+  education         String   @default("[]") // JSON string[]
+  previousCompanies String   @default("[]") // JSON string[]
+  knownProjects     String   @default("[]") // JSON string[]
+  media             String   @default("[]") // JSON string[]
+  legalHistory      String?
+  reputationNotes   String?
+  sourceIds         String   @default("[]") // JSON string[]
+  confidence        String   @default("low")
+  createdAt         DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Token, allocations, unlocks, tokenomics schedule summary
+// ---------------------------------------------------------------------------
+
+model Token {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  name              String
+  symbol            String?
+  aliases           String   @default("[]") // JSON string[]
+  chain             String?
+  contractAddress   String?
+  tokenStandard     String?
+  decimals          Int?
+  issuerEntityId    String?
+  officialSources   String   @default("[]") // JSON string[]
+  marketCap         Float?
+  fdv               Float?
+  price             Float?
+  circulatingSupply Float?
+  totalSupply       Float?
+  maxSupply         Float?
+  supplyTimestamp   DateTime?
+  vestingNotes      String?
+  utility           String   @default("[]") // JSON string[]
+  valueCapture      String   @default("[]") // JSON string[]
+  rightsDisclaimer  String?
+  createdAt         DateTime @default(now())
+
+  allocations       TokenAllocation[]
+  unlocks           UnlockEvent[]
+  schedule          TokenomicsSchedule?
+  contracts         TokenContract[]
+  markets           ExchangeMarket[]
+  holderSnaps       HolderSnapshot[]
+  liquiditySnaps    LiquiditySnapshot[]
+}
+
+model TokenAllocation {
+  id              String  @id @default(cuid())
+  tokenId         String
+  token           Token   @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  category        String  @default("unknown") // AllocationCategory enum
+  amountTokens    Float?
+  percentageTotal Float?
+  lockedAmount    Float?
+  unlockedAmount  Float?
+  vestingTerms    String?
+  wallets         String  @default("[]") // JSON string[]
+  sourceIds       String  @default("[]") // JSON string[]
+  confidence      String  @default("low")
+}
+
+model UnlockEvent {
+  id               String   @id @default(cuid())
+  tokenId          String
+  token            Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  date             String?  // ISO date or period label
+  amountTokens     Float?
+  percentageSupply Float?
+  category         String?
+  recipientGroup   String?
+  cliff            Boolean  @default(false)
+  linear           Boolean  @default(false)
+  source           String?
+  notes            String?
+}
+
+// Tokenomics worker's structured summary/analysis of the schedule.
+model TokenomicsSchedule {
+  id                  String   @id @default(cuid())
+  tokenId             String   @unique
+  token               Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  insiderPercentage   Float?
+  treasuryPercentage  Float?
+  marketMakerPct      Float?
+  communityPercentage Float?
+  emissionsSummary    String?
+  stakingRewards      String?
+  vestingSummary      String?
+  dilutionRisk        String?  // low | medium | high | unknown
+  concentrationRisk   String?
+  nextUnlockDate      String?
+  nextUnlockPct       Float?
+  notes               String?
+  createdAt           DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Smart contracts (≈ SmartContract)
+// ---------------------------------------------------------------------------
+
+model TokenContract {
+  id                    String  @id @default(cuid())
+  caseId                String
+  case                  DDCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tokenId               String?
+  token                 Token?  @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  chain                 String
+  address               String
+  name                  String?
+  verified              Boolean @default(false)
+  proxy                 Boolean @default(false)
+  implementationAddress String?
+  ownerAddress          String?
+  adminAddresses        String  @default("[]") // JSON string[]
+  multisig              Boolean @default(false)
+  multisigSigners       String  @default("[]") // JSON string[]
+  timelock              Boolean @default(false)
+  canPause              Boolean @default(false)
+  canBlacklist          Boolean @default(false)
+  canFreeze             Boolean @default(false)
+  canMint               Boolean @default(false)
+  canBurn               Boolean @default(false)
+  canUpgrade            Boolean @default(false)
+  auditReports          String  @default("[]") // JSON string[]
+  securityNotes         String?
+  sourceIds             String  @default("[]") // JSON string[]
+  createdAt             DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Markets, liquidity, slippage, holders (≈ MarketPair / SlippageEstimate)
+// ---------------------------------------------------------------------------
+
+model ExchangeMarket {
+  id                  String   @id @default(cuid())
+  caseId              String
+  case                DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tokenId             String?
+  token               Token?   @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  exchange            String
+  base                String?
+  quote               String?
+  pair                String?
+  marketType          String   @default("unknown") // cex_spot | dex_pool | derivatives | unknown
+  url                 String?
+  price               Float?
+  volume24h           Float?
+  spreadBps           Float?
+  depthPlus2PctUsd    Float?
+  depthMinus2PctUsd   Float?
+  orderBookTimestamp  DateTime?
+  depositStatus       String   @default("unknown") // enabled | disabled | unknown
+  withdrawalStatus    String   @default("unknown")
+  networks            String   @default("[]") // JSON string[]
+  trustScore          String   @default("unknown") // high | medium | low | unknown
+  createdAt           DateTime @default(now())
+}
+
+model SlippageEstimate {
+  id                       String   @id @default(cuid())
+  caseId                   String
+  case                     DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  exchange                 String?
+  pair                     String?
+  side                     String   @default("buy") // buy | sell
+  notionalUsd              Float?
+  estimatedSlippagePercent Float?
+  method                   String   @default("heuristic") // order_book | amm_formula | heuristic
+  snapshotTimestamp        DateTime @default(now())
+  notes                    String?
+}
+
+model LiquiditySnapshot {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tokenId           String?
+  token             Token?   @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  takenAt           DateTime @default(now())
+  totalLiquidityUsd Float?
+  cexLiquidityUsd   Float?
+  dexLiquidityUsd   Float?
+  volume24h         Float?
+  venueCount        Int?
+  washTradingFlags  String   @default("[]") // JSON string[]
+  source            String?
+  notes             String?
+}
+
+model HolderSnapshot {
+  id              String   @id @default(cuid())
+  caseId          String
+  case            DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tokenId         String?
+  token           Token?   @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  takenAt         DateTime @default(now())
+  contractAddress String?
+  totalHolders    Int?
+  top10Pct        Float?
+  top50Pct        Float?
+  topWallets      String   @default("[]") // JSON {address,label,pct,type}[]
+  source          String?
+  notes           String?
+}
+
+// ---------------------------------------------------------------------------
+// Stablecoin & RWA (≈ Stablecoin / RWAInstrument)
+// ---------------------------------------------------------------------------
+
+model StablecoinProfile {
+  id                    String   @id @default(cuid())
+  caseId                String
+  case                  DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  name                  String
+  symbol                String?
+  issuerEntityId        String?
+  jurisdiction          String?
+  classification        String   @default("unknown") // e_money_token | asset_referenced_token | deposit_token | fiat_backed | crypto_backed | algorithmic | unknown
+  contractAddresses     String   @default("[]") // JSON string[]
+  reserveAssets         String   @default("[]") // JSON string[]
+  reserveCustodians     String   @default("[]") // JSON string[]
+  redemptionParty       String?
+  redemptionTerms       String?
+  attestations          String   @default("[]") // JSON string[]
+  canPauseRedemptions   Boolean  @default(false)
+  blacklistFreeze       Boolean  @default(false)
+  sourceIds             String   @default("[]") // JSON string[]
+  confidence            String   @default("low")
+  createdAt             DateTime @default(now())
+}
+
+model RWAAssetProfile {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  assetDescription  String
+  assetType         String   @default("other") // real_estate | receivable | bond | fund | commodity | equity | loan | other
+  jurisdiction      String?
+  legalOwnerBefore  String?
+  legalOwnerAfter   String?
+  spvEntityId       String?
+  custodianEntityId String?
+  tokenContract     String?
+  investorRights    String   @default("[]") // JSON string[]
+  redemptionRights  String?
+  cashflowRights    String?
+  valuationMethod   String?
+  appraisalSource   String?
+  insurance         String?  // JSON InsurancePolicy
+  riskScore         String?
+  sourceIds         String   @default("[]") // JSON string[]
+  createdAt         DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Findings, red flags, scoring (≈ Finding / ScoreSet)
+// ---------------------------------------------------------------------------
+
+model RiskFinding {
+  id             String   @id @default(cuid())
+  caseId         String
+  case           DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  category       String   @default("other") // FindingCategory enum
+  title          String
+  claim          String?
+  evidenceIds    String   @default("[]") // JSON string[]
+  analysis       String?
+  severity       String   @default("informational") // critical | high | medium | low | informational | unresolved
+  confidence     String   @default("medium")
+  impact         String?
+  mitigation     String?
+  openQuestions  String   @default("[]") // JSON string[]
+  source         String   @default("worker") // worker | manual | ai
+  createdAt      DateTime @default(now())
+}
+
+model RedFlag {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  code        String?  // catalog code, e.g. FRAUD_PERSONAL_WALLET
+  title       String
+  severity    String   @default("high") // critical | high | medium | low | unresolved
+  evidence    String?
+  impact      String?
+  mitigation  String?
+  evidenceIds String   @default("[]") // JSON string[]
+  triggered   Boolean  @default(true)
+  source      String   @default("worker") // worker | ai
+  createdAt   DateTime @default(now())
+}
+
+model Scorecard {
+  id                       String   @id @default(cuid())
+  caseId                   String   @unique
+  case                     DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  // Category scores 1..10 (fraud/impersonation: 10 = lowest fraud risk)
+  legalRegulatoryClarity   Float?
+  fraudImpersonationRisk   Float?
+  tokenValueCapture        Float?
+  marketLiquidity          Float?
+  teamFounderQuality       Float?
+  businessFundamentals     Float?
+  valuationAttractiveness  Float?
+  technicalSafety          Float?
+  partnershipCredibility   Float?
+  transparencyDisclosure   Float?  // scored, unweighted (informational)
+
+  overallScore             Float?
+  recommendation           String?  // Recommendation enum
+  confidenceLevel          String   @default("medium")
+  gatingApplied            String   @default("[]") // JSON string[] of triggered overrides
+  manualGating             String   @default("{}") // JSON map of saved blocker choices, separate from research
+  rationale                String   @default("{}")  // JSON map category -> rationale text
+  scoreSources             String   @default("{}")  // JSON map category -> analyst | worker | ai
+  notes                    String?
+  updatedAt                DateTime @updatedAt
+  createdAt                DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Reports, sections, generated files
+// ---------------------------------------------------------------------------
+
+model Report {
+  id              String   @id @default(cuid())
+  caseId          String
+  case            DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  reportType      String   @default("full_institutional")
+  title           String
+  status          String   @default("draft") // draft | qa | final
+  recommendation  String?
+  overallScore    Float?
+  confidenceLevel String?
+  version         Int      @default(1)
+  contentJson     String   @default("{}") // full structured report payload (JSON)
+  qaJson          String   @default("{}") // QA checklist result (JSON)
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sections        ReportSection[]
+  files           GeneratedFile[]
+}
+
+model ReportSection {
+  id           String  @id @default(cuid())
+  reportId     String
+  report       Report  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  key          String  // stable section key, e.g. "executive_summary"
+  title        String
+  order        Int     @default(0)
+  bodyJson     String  @default("{}") // structured section payload (JSON)
+  bodyMarkdown String? // optional analyst override (Markdown)
+  included     Boolean @default(true)
+}
+
+model GeneratedFile {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reportId  String?
+  report    Report?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  kind      String   // html | pdf | markdown | evidence_manifest
+  filename  String
+  path      String
+  mimeType  String
+  sizeBytes Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Research orchestration (≈ ResearchTask + worker traces)
+// ---------------------------------------------------------------------------
+
+model ResearchRun {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  status      String   @default("queued") // queued | running | completed | failed | cancelled
+  mode        String   @default("offline") // offline (rule-based workers only) | ai
+  provider    String?  // AI provider id when mode = ai
+  model       String?  // AI model when mode = ai
+  stage       String?  // human-readable progress label while running
+  reportType  String   @default("full_institutional")
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  summaryJson String   @default("{}") // JSON run summary
+  usageJson   String   @default("{}") // JSON token / search usage for AI runs
+  error       String?
+  createdAt   DateTime @default(now())
+
+  traces      WorkerTrace[]
+}
+
+model WorkerTrace {
+  id            String   @id @default(cuid())
+  researchRunId String
+  researchRun   ResearchRun @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+
+  worker        String
+  status        String   @default("ok") // ok | partial | failed | skipped
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  durationMs    Int      @default(0)
+  confidence    String   @default("medium") // high | medium | low
+  inputJson     String   @default("{}")
+  outputJson    String   @default("{}")
+  logs          String   @default("[]") // JSON string[]
+  error         String?
+}
+
+// ---------------------------------------------------------------------------
+// AI providers, settings and narrative
+// ---------------------------------------------------------------------------
+
+// Key/value application settings (JSON values validated with Zod in src/ai/settings.ts).
+model AppSetting {
+  key       String   @id
+  valueJson String   @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+// Encrypted credentials (API keys). Plaintext never leaves the server process.
+model Secret {
+  name       String   @id // e.g. "anthropic.apiKey"
+  ciphertext String
+  scheme     String   // os-keychain | local-aes-gcm
+  hint       String?  // last characters, for display only
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// AI-drafted report narrative for a case (one per case, replaced on redraft).
+model CaseNarrative {
+  id          String   @id @default(cuid())
+  caseId      String   @unique
+  case        DDCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  contentJson String   @default("{}")
+  provider    String
+  model       String
+  usageJson   String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// One row per AI provider call, for usage and cost transparency.
+model AiCall {
+  id           String   @id @default(cuid())
+  caseId       String?  // not a relation: usage history outlives deleted cases
+  purpose      String   // research | analysis | narrative | intake | test
+  provider     String
+  model        String
+  status       String   // ok | failed | cancelled
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  webSearches  Int      @default(0)
+  costUsd      Float?   // only when the provider reports it
+  durationMs   Int      @default(0)
+  error        String?
+  createdAt    DateTime @default(now())
+}

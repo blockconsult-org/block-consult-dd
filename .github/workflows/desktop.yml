@@ -1,0 +1,88 @@
+name: Desktop app
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    uses: ./.github/workflows/checks.yml
+
+  build:
+    needs: verify
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            label: macOS arm64
+          # The Prisma engine is per CPU, so Intel builds need an Intel runner.
+          - os: macos-15-intel
+            label: macOS x64
+          - os: windows-latest
+            label: Windows x64
+          - os: ubuntu-latest
+            label: Linux x64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # Generate the Prisma client for this runner and install Electron.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Build installers
+        run: npm run desktop:build
+        env:
+          # Signing and notarization run only when these secrets are set;
+          # otherwise macOS builds are signed ad hoc.
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      # Catches installers that build but do not start (missing server files,
+      # wrong Prisma engine). Only passing builds are uploaded.
+      - name: Smoke-test the packaged app
+        if: runner.os != 'Linux'
+        run: npm run desktop:smoke -- --packaged
+
+      - name: Smoke-test the packaged app (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Ubuntu 24.04 blocks the unprivileged user namespaces Chromium's sandbox uses.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          xvfb-run -a npm run desktop:smoke -- --packaged
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: block-consult-dd-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
