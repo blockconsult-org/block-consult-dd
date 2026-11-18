@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
+import { choose, installProviderFixtures, verifyCaseWorkflows, verifySettingsWorkflows } from "./browser-workflows.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const capture = process.argv.includes("--screenshots");
@@ -84,20 +85,30 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
   const page = await context.newPage();
+  await installProviderFixtures(page);
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  let stage = "initializing";
+  page.on("pageerror", (error) => {
+    const detail = { stage, url: page.url(), message: error.message, stack: error.stack };
+    errors.push(detail);
+    console.error("Browser runtime error", JSON.stringify(detail));
+  });
   const tabs = ["overview", "evidence", "records", "findings", "scorecard", "report"];
-  const screens = [["dashboard", "/"], ["intake", "/cases/new"], ["settings", "/settings"], ["unlock", "/unlock"],
+  const screens = [["dashboard", "/"], ["intake", "/cases/new"], ["settings", "/settings"],
+    ["appearance", "/settings", "Appearance"], ["research-settings", "/settings", "Research"], ["usage", "/settings", "Usage"], ["unlock", "/unlock"],
     ...tabs.map((tab) => [tab, `/cases/${id}?tab=${tab}`])];
   const screenshots = new Map([
     ["light/dashboard", "dashboard-light.png"], ["dark/overview", "case-overview-dark.png"],
     ["light/scorecard", "scorecard-light.png"], ["dark/report", "reports-dark.png"],
+    ["light/settings", "settings-light.png"], ["dark/settings", "settings-dark.png"],
   ]);
   if (capture) await fs.mkdir(path.join(root, "docs", "screenshots"), { recursive: true });
   for (const theme of ["light", "dark"]) {
-    for (const [name, route] of screens) {
+    for (const [name, route, section] of screens) {
+      stage = `${theme}/${name}`;
       await page.goto(url + route);
-      await page.getByLabel("Appearance", { exact: true }).selectOption(theme);
+      if (route === "/settings") await page.getByRole("tab", { name: section ?? "AI providers", exact: true }).click();
+      await choose(page, "Appearance", theme === "light" ? "Light" : "Dark");
       if (name === "unlock") {
         await page.route("**/api/unlock", (route) => route.fulfill({ status: 401, contentType: "application/json", body: '{"error":"The token was not accepted."}' }));
         await page.getByLabel("Access token", { exact: true }).fill("synthetic-invalid-token");
@@ -117,11 +128,28 @@ try {
         const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
         assert(dimensions.scroll <= dimensions.width, `${theme}/${name} overflows at ${width}px`);
       }
+      await page.setViewportSize({ width: 1024, height: 600 });
+      await page.evaluate(() => { document.documentElement.style.zoom = "1.5"; });
+      const zoomed = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+      assert(zoomed, `${theme}/${name} overflows at 150% zoom in a short window`);
+      await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+      await page.setViewportSize({ width: 1440, height: 1050 });
       const screenshot = screenshots.get(`${theme}/${name}`);
       if (capture && screenshot) await page.screenshot({ path: path.join(root, "docs", "screenshots", screenshot) });
+      if (capture && theme === "dark" && name === "settings") {
+        await page.setViewportSize({ width: 768, height: 720 });
+        await page.screenshot({ path: path.join(root, "docs", "screenshots", "settings-narrow.png") });
+        await page.setViewportSize({ width: 1440, height: 1050 });
+      }
+      if (capture && theme === "light" && name === "overview") {
+        await page.setViewportSize({ width: 768, height: 720 });
+        await page.screenshot({ path: path.join(root, "docs", "screenshots", "case-narrow.png") });
+        await page.setViewportSize({ width: 1440, height: 1050 });
+      }
     }
   }
   // Exercise a real score edit through navigation, save and reload.
+  stage = "scorecard draft/save/reload";
   await page.goto(`${url}/cases/${id}?tab=scorecard`);
   const notes = page.getByLabel("Analyst notes", { exact: true });
   await notes.fill("Synthetic browser review note");
@@ -132,12 +160,16 @@ try {
   await page.getByText("Scorecard saved", { exact: true }).waitFor();
   await page.reload();
   assert.equal(await notes.inputValue(), "Synthetic browser review note");
+  stage = "case workflows";
+  await verifyCaseWorkflows({ page, api, url, exampleId: id });
+  stage = "settings workflows";
+  await verifySettingsWorkflows({ page, api, url });
   const pdf = await fetch(`${url}/api/cases/${id}/report/pdf`);
   assert.equal(pdf.status, 200);
   assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-");
   assert.deepEqual(errors, [], "Browser runtime errors");
-  console.log("PASS: 20 screen/theme accessibility checks, 80 responsive checks, draft/save/reload, offline research, report and PDF exports.");
-  if (capture) console.log("Captured four fictional-case screenshots in docs/screenshots/.");
+  console.log(`PASS: ${screens.length * 2} screen/theme accessibility checks, ${screens.length * 8} responsive checks, short windows and zoom, case/settings workflows, draft/save/reload, offline research, report and PDF exports.`);
+  if (capture) console.log("Captured eight fictional-case screenshots in docs/screenshots/.");
 } catch (error) {
   console.error(log);
   throw error;
